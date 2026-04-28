@@ -1,0 +1,14 @@
+{
+  "name": "apiblueprint-mock",
+  "version": "1.0.0",
+  "description": "Dynamic mock server for APIBlueprint — reads OpenAPI spec and returns example responses",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.0",
+    "cors": "^2.8.5"
+  }
+}

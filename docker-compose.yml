@@ -1,0 +1,73 @@
+services:
+
+  # ── PostgreSQL Database ───────────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: apiblueprint_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-apiblueprint}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-apiblueprint}
+      POSTGRES_DB: ${POSTGRES_DB:-apiblueprint}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-apiblueprint}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI Backend ───────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: apiblueprint_backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://apiblueprint:apiblueprint@db:5432/apiblueprint}
+      CORS_ORIGINS: '${CORS_ORIGINS:-["http://localhost:5173","http://localhost:3000","http://frontend:5173"]}'
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
+  # ── Express Mock Server ───────────────────────────────────────────────────────
+  mock:
+    build:
+      context: ./mock
+      dockerfile: Dockerfile
+    container_name: apiblueprint_mock
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: ${BACKEND_URL:-http://backend:8000}
+      PORT: ${MOCK_PORT:-4010}
+    ports:
+      - "${MOCK_PORT:-4010}:${MOCK_PORT:-4010}"
+    depends_on:
+      - backend
+
+  # ── React Frontend ────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: apiblueprint_frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+      VITE_MOCK_URL: ${VITE_MOCK_URL:-http://localhost:4010}
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend/src:/app/src
+
+volumes:
+  postgres_data:

@@ -1,0 +1,66 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@300;400;500;600&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #000000;
+  --surface: #0f0f0f;
+  --surface2: #161616;
+  --surface3: #1c1c1c;
+  --border: #242424;
+  --border2: #2e2e2e;
+  --accent: #00d4aa;
+  --accent-dim: rgba(0,212,170,0.12);
+  --text: #f0f0f0;
+  --text2: #a0a0a0;
+  --text3: #606060;
+  --red: #ff5c6a;
+  --yellow: #f5c842;
+  --blue: #60a5fa;
+  --orange: #fb923c;
+  --font: 'Sora', sans-serif;
+  --mono: 'IBM Plex Mono', monospace;
+  --radius: 8px;
+  --radius-sm: 5px;
+}
+
+html, body, #root { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; -webkit-font-smoothing: antialiased; }
+button { font-family: var(--font); cursor: pointer; }
+input, textarea, select { font-family: var(--font); }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+.method-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.method-badge.GET {
+  background: rgba(96, 165, 250, 0.12);
+  color: var(--blue);
+}
+
+.method-badge.POST {
+  background: rgba(0, 212, 170, 0.12);
+  color: var(--accent);
+}
+
+.method-badge.PUT,
+.method-badge.PATCH {
+  background: rgba(245, 200, 66, 0.12);
+  color: var(--yellow);
+}
+
+.method-badge.DELETE {
+  background: rgba(255, 92, 106, 0.12);
+  color: var(--red);
+}
