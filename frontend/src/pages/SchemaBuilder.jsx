@@ -18,25 +18,6 @@ const TYPE_COLORS = {
   number: '#f5c842',
 };
 
-const panelInputStyle = {
-  width: '100%',
-  background: '#111',
-  border: '1px solid #242424',
-  borderRadius: 6,
-  padding: '8px 12px',
-  color: '#f0f0f0',
-  fontSize: 12,
-  outline: 'none',
-};
-
-const emptyFieldDraft = {
-  name: '',
-  type: 'string',
-  description: '',
-  required: false,
-  parent_id: null,
-};
-
 function buildJsonSchema(fields, parentId = null) {
   const nodes = fields.filter(field => field.parent_id === parentId);
   const properties = {};
@@ -63,7 +44,9 @@ function fieldToSchema(field, fields) {
 
   if (normalizedType === 'object') {
     const schema = buildJsonSchema(fields, field.id);
-    if (field.description) schema.description = field.description;
+    if (field.description) {
+      schema.description = field.description;
+    }
     return schema;
   }
 
@@ -72,7 +55,9 @@ function fieldToSchema(field, fields) {
       type: 'array',
       items: children.length ? buildJsonSchema(fields, field.id) : { type: 'string' },
     };
-    if (field.description) schema.description = field.description;
+    if (field.description) {
+      schema.description = field.description;
+    }
     return schema;
   }
 
@@ -117,94 +102,12 @@ function FieldRow({ field, depth, onAddChild, onDelete }) {
   );
 }
 
-function NewSchemaForm({ draft, saving, onChange, onSubmit, onCancel }) {
-  return (
-    <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <input
-        value={draft}
-        onChange={event => onChange(event.target.value)}
-        placeholder="Schema name"
-        style={{ ...panelInputStyle, fontFamily: 'var(--mono)' }}
-      />
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button type="submit" disabled={saving || !draft.trim()} style={{ flex: 1, background: '#00d4aa', color: '#000', border: 'none', borderRadius: 6, padding: '8px 10px', fontSize: 12, fontWeight: 600 }}>
-          {saving ? 'Creating...' : 'Create'}
-        </button>
-        <button type="button" onClick={onCancel} style={{ background: 'transparent', color: '#606060', border: '1px solid #242424', borderRadius: 6, padding: '8px 10px', fontSize: 12 }}>
-          Cancel
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function FieldForm({ draft, parentField, saving, onChange, onSubmit, onCancel }) {
-  return (
-    <form onSubmit={onSubmit} style={{ marginTop: 12, padding: 14, background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#f0f0f0' }}>
-            {parentField ? `Add child field to ${parentField.name}` : 'Add top-level field'}
-          </div>
-          <div style={{ fontSize: 10, color: '#505050', marginTop: 2 }}>
-            {parentField ? `Parent type: ${parentField.type}` : 'This field will be created at the schema root'}
-          </div>
-        </div>
-      </div>
-
-      <input
-        value={draft.name}
-        onChange={event => onChange('name', event.target.value)}
-        placeholder="Field name"
-        style={{ ...panelInputStyle, fontFamily: 'var(--mono)' }}
-      />
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <select
-          value={draft.type}
-          onChange={event => onChange('type', event.target.value)}
-          style={panelInputStyle}
-        >
-          {FIELD_TYPES.map(type => <option key={type}>{type}</option>)}
-        </select>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', border: '1px solid #242424', borderRadius: 6, color: '#a0a0a0', fontSize: 12 }}>
-          <input type="checkbox" checked={draft.required} onChange={event => onChange('required', event.target.checked)} />
-          Required field
-        </label>
-      </div>
-
-      <textarea
-        value={draft.description}
-        onChange={event => onChange('description', event.target.value)}
-        rows={3}
-        placeholder="Describe this field"
-        style={{ ...panelInputStyle, resize: 'vertical', lineHeight: 1.6 }}
-      />
-
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button type="submit" disabled={saving || !draft.name.trim()} style={{ background: '#00d4aa', color: '#000', border: 'none', borderRadius: 6, padding: '8px 14px', fontSize: 12, fontWeight: 600 }}>
-          {saving ? 'Saving...' : 'Create Field'}
-        </button>
-        <button type="button" onClick={onCancel} style={{ background: 'transparent', color: '#606060', border: '1px solid #242424', borderRadius: 6, padding: '8px 14px', fontSize: 12 }}>
-          Cancel
-        </button>
-      </div>
-    </form>
-  );
-}
-
 export default function SchemaBuilder() {
   const { activeProject } = useApp();
   const [schemas, setSchemas] = useState([]);
   const [activeSchemaId, setActiveSchemaId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [createSchemaOpen, setCreateSchemaOpen] = useState(false);
-  const [createSchemaSaving, setCreateSchemaSaving] = useState(false);
-  const [schemaDraft, setSchemaDraft] = useState('');
-  const [fieldFormOpen, setFieldFormOpen] = useState(false);
-  const [fieldFormSaving, setFieldFormSaving] = useState(false);
-  const [fieldDraft, setFieldDraft] = useState(emptyFieldDraft);
 
   useEffect(() => {
     let cancelled = false;
@@ -238,7 +141,6 @@ export default function SchemaBuilder() {
   }, [activeProject?.id]);
 
   const activeSchema = schemas.find(schema => schema.id === activeSchemaId) || null;
-  const parentField = activeSchema?.fields.find(field => field.id === fieldDraft.parent_id) || null;
 
   const orderedFields = useMemo(() => {
     if (!activeSchema) return [];
@@ -265,39 +167,12 @@ export default function SchemaBuilder() {
     setActiveSchemaId(nextActiveId && nextSchemas.find(schema => schema.id === nextActiveId) ? nextActiveId : nextSchemas[0]?.id || null);
   }
 
-  function resetSchemaForm() {
-    setCreateSchemaOpen(false);
-    setCreateSchemaSaving(false);
-    setSchemaDraft('');
-  }
-
-  function openFieldForm(parent = null) {
-    setFieldDraft({
-      ...emptyFieldDraft,
-      parent_id: parent?.id || null,
-      type: parent?.type === 'array' ? 'string' : 'string',
-    });
-    setFieldFormOpen(true);
-  }
-
-  function resetFieldForm() {
-    setFieldFormOpen(false);
-    setFieldFormSaving(false);
-    setFieldDraft(emptyFieldDraft);
-  }
-
-  async function handleCreateSchema(event) {
-    event.preventDefault();
-    if (!activeProject?.id || !schemaDraft.trim()) return;
-
-    setCreateSchemaSaving(true);
-    const schema = await api.createSchema(activeProject.id, { name: schemaDraft.trim() });
-    if (schema) {
-      await refreshSchemas(schema.id);
-      resetSchemaForm();
-    } else {
-      setCreateSchemaSaving(false);
-    }
+  async function handleCreateSchema() {
+    if (!activeProject?.id) return;
+    const name = window.prompt('Schema name', 'NewSchema');
+    if (!name) return;
+    const schema = await api.createSchema(activeProject.id, { name });
+    await refreshSchemas(schema?.id);
   }
 
   async function handleDeleteSchema(schemaId) {
@@ -305,21 +180,24 @@ export default function SchemaBuilder() {
     await refreshSchemas();
   }
 
-  async function handleCreateField(event) {
-    event.preventDefault();
-    if (!activeSchema || !fieldDraft.name.trim()) return;
+  async function handleAddField(parentField = null) {
+    if (!activeSchema) return;
+    const name = window.prompt('Field name', parentField ? 'child_field' : 'new_field');
+    if (!name) return;
+    const type = window.prompt(`Field type (${FIELD_TYPES.join(', ')})`, parentField ? 'string' : 'string');
+    if (!type || !FIELD_TYPES.includes(type)) return;
+    const description = window.prompt('Field description', '') || '';
+    const required = window.confirm('Should this field be required?');
 
-    setFieldFormSaving(true);
     await api.createField(activeSchema.id, {
-      name: fieldDraft.name.trim(),
-      type: fieldDraft.type,
-      required: fieldDraft.required,
-      description: fieldDraft.description.trim(),
-      parent_id: fieldDraft.parent_id,
+      name,
+      type,
+      required,
+      description,
+      parent_id: parentField?.id || null,
     });
 
     await refreshSchemas(activeSchema.id);
-    resetFieldForm();
   }
 
   async function handleDeleteField(fieldId) {
@@ -343,7 +221,7 @@ export default function SchemaBuilder() {
       await api.deleteField(id);
     }
 
-    await refreshSchemas(activeSchema.id);
+    await refreshSchemas(activeSchema?.id);
   }
 
   return (
@@ -355,7 +233,7 @@ export default function SchemaBuilder() {
         ]} />
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          <div style={{ width: 240, background: '#080808', borderRight: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ width: 220, background: '#080808', borderRight: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '10px 12px', borderBottom: '1px solid #1a1a1a', fontSize: 10, color: '#505050', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Schemas</div>
             <div style={{ flex: 1, padding: 6, overflow: 'auto' }}>
               {schemas.map(schema => (
@@ -386,19 +264,9 @@ export default function SchemaBuilder() {
               )}
             </div>
             <div style={{ padding: 8, borderTop: '1px solid #1a1a1a' }}>
-              {createSchemaOpen ? (
-                <NewSchemaForm
-                  draft={schemaDraft}
-                  saving={createSchemaSaving}
-                  onChange={setSchemaDraft}
-                  onSubmit={handleCreateSchema}
-                  onCancel={resetSchemaForm}
-                />
-              ) : (
-                <button onClick={() => setCreateSchemaOpen(true)} style={{ width: '100%', background: 'rgba(0,212,170,0.1)', border: '1px solid rgba(0,212,170,0.2)', color: '#00d4aa', borderRadius: 6, padding: '7px', fontSize: 11, cursor: 'pointer' }}>
-                  + New Schema
-                </button>
-              )}
+              <button onClick={handleCreateSchema} style={{ width: '100%', background: 'rgba(0,212,170,0.1)', border: '1px solid rgba(0,212,170,0.2)', color: '#00d4aa', borderRadius: 6, padding: '7px', fontSize: 11, cursor: 'pointer' }}>
+                + New Schema
+              </button>
             </div>
           </div>
 
@@ -412,23 +280,10 @@ export default function SchemaBuilder() {
               </div>
               {activeSchema && (
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                  <button onClick={() => openFieldForm()} style={{ background: '#00d4aa', color: '#000', border: 'none', borderRadius: 6, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  <button onClick={() => handleAddField()} style={{ background: '#00d4aa', color: '#000', border: 'none', borderRadius: 6, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                     + Add field
                   </button>
                 </div>
-              )}
-            </div>
-
-            <div style={{ padding: '0 20px 12px' }}>
-              {fieldFormOpen && (
-                <FieldForm
-                  draft={fieldDraft}
-                  parentField={parentField}
-                  saving={fieldFormSaving}
-                  onChange={(field, value) => setFieldDraft(current => ({ ...current, [field]: value }))}
-                  onSubmit={handleCreateField}
-                  onCancel={resetFieldForm}
-                />
               )}
             </div>
 
@@ -453,7 +308,7 @@ export default function SchemaBuilder() {
                   key={field.id}
                   field={field}
                   depth={depth}
-                  onAddChild={openFieldForm}
+                  onAddChild={handleAddField}
                   onDelete={handleDeleteField}
                 />
               ))}

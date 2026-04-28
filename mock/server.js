@@ -11,8 +11,6 @@ const PORT = process.env.PORT || 4010;
 
 const registeredProjects = new Set();
 const projectSpecs = new Map();
-const projectReloads = new Map();
-const serverStartedAt = Date.now();
 let requestLog = [];
 
 function resolveSchema(schema, spec) {
@@ -91,80 +89,10 @@ function findOperation(spec, method, requestPath) {
   for (const [path, methods] of Object.entries(spec.paths || {})) {
     if (!methods[method]) continue;
     if (pathToRegExp(path).test(requestPath)) {
-      return { operation: methods[method], path };
+      return methods[method];
     }
   }
   return null;
-}
-
-function parseProjectId(value) {
-  const projectId = parseInt(value, 10);
-  return Number.isNaN(projectId) ? null : projectId;
-}
-
-function getProjectLogs(projectId = null) {
-  if (!projectId) return requestLog;
-  return requestLog.filter(entry => entry.project_id === projectId);
-}
-
-function formatDuration(ms) {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
-}
-
-function buildStats(projectId = null) {
-  const logs = getProjectLogs(projectId);
-  const total = logs.length;
-  const errorCount = logs.filter(entry => entry.status >= 400).length;
-  const avgLatency = total
-    ? Math.round(logs.reduce((sum, entry) => sum + parseInt(entry.latency, 10), 0) / total)
-    : 0;
-  const methodCounts = {};
-  const statusBuckets = { "2xx": 0, "3xx": 0, "4xx": 0, "5xx": 0 };
-  const routeCounts = {};
-
-  logs.forEach(entry => {
-    methodCounts[entry.method] = (methodCounts[entry.method] || 0) + 1;
-
-    const bucket = `${Math.floor(entry.status / 100)}xx`;
-    if (statusBuckets[bucket] !== undefined) {
-      statusBuckets[bucket] += 1;
-    }
-
-    const routeKey = `${entry.method} ${entry.route_template || entry.path}`;
-    routeCounts[routeKey] = (routeCounts[routeKey] || 0) + 1;
-  });
-
-  const topRoutes = Object.entries(routeCounts)
-    .sort((left, right) => right[1] - left[1])
-    .slice(0, 5)
-    .map(([route, count]) => ({ route, count }));
-
-  const latestReload = projectId
-    ? projectReloads.get(projectId) || null
-    : Array.from(projectReloads.values()).sort().at(-1) || null;
-
-  return {
-    project_id: projectId,
-    total_requests: total,
-    error_count: errorCount,
-    error_rate: total ? `${((errorCount / total) * 100).toFixed(1)}%` : "0%",
-    avg_latency: `${avgLatency}ms`,
-    uptime: formatDuration(Date.now() - serverStartedAt),
-    last_request_at: logs[0]?.timestamp || null,
-    last_reload_at: latestReload,
-    methods: methodCounts,
-    status_buckets: statusBuckets,
-    top_routes: topRoutes,
-    registered_projects: Array.from(registeredProjects),
-    path_groups: projectId ? Object.keys(projectSpecs.get(projectId)?.paths || {}).length : null,
-  };
 }
 
 async function loadProjectSpec(projectId) {
@@ -173,7 +101,6 @@ async function loadProjectSpec(projectId) {
     const spec = res.data;
     projectSpecs.set(projectId, spec);
     registeredProjects.add(projectId);
-    projectReloads.set(projectId, new Date().toISOString());
 
     console.log(`[Mock] Loading spec for project ${projectId}: ${spec.info?.title}`);
     console.log(`[Mock] Registered ${Object.keys(spec.paths || {}).length} path groups for project ${projectId}`);
@@ -189,13 +116,22 @@ app.get("/health", (req, res) => {
 });
 
 app.get("/mock-logs", (req, res) => {
-  const projectId = parseProjectId(req.query.projectId);
-  res.json(getProjectLogs(projectId));
+  res.json(requestLog);
 });
 
 app.get("/mock-stats", (req, res) => {
-  const projectId = parseProjectId(req.query.projectId);
-  res.json(buildStats(projectId));
+  const total = requestLog.length;
+  const errors = requestLog.filter(r => r.status >= 400).length;
+  const avgLatency = requestLog.length
+    ? Math.round(requestLog.reduce((a, r) => a + parseInt(r.latency), 0) / requestLog.length)
+    : 0;
+
+  res.json({
+    total_requests: total,
+    error_rate: total ? ((errors / total) * 100).toFixed(1) + "%" : "0%",
+    avg_latency: avgLatency + "ms",
+    uptime: "99.98%",
+  });
 });
 
 app.post("/mock/reload/:projectId", async (req, res) => {
@@ -211,7 +147,6 @@ app.post("/mock/reload/:projectId", async (req, res) => {
   return res.json({
     message: `Spec reloaded for project ${projectId}`,
     path_groups: Object.keys(spec.paths || {}).length,
-    reloaded_at: projectReloads.get(projectId),
   });
 });
 
@@ -228,30 +163,24 @@ app.all("/mock/:projectId/*", async (req, res) => {
   }
 
   const requestPath = normalizeMockPath(req.path.slice(`/mock/${projectId}`.length));
-  const match = findOperation(spec, req.method.toLowerCase(), requestPath);
+  const operation = findOperation(spec, req.method.toLowerCase(), requestPath);
 
-  if (!match) {
+  if (!operation) {
     return res.status(404).json({
       error: "Mock route not found",
       message: `${req.method} ${requestPath} is not defined in project ${projectId}`,
     });
   }
 
-  const { operation, path: routeTemplate } = match;
-
-  const now = new Date();
-  const timestamp = now.toISOString().slice(11, 19);
+  const timestamp = new Date().toISOString().slice(11, 19);
   const latency = Math.floor(Math.random() * 50) + 5;
   const codes = Object.keys(operation.responses || { "200": {} });
   const successCode = codes.find(code => code.startsWith("2")) || codes[0] || "200";
 
   requestLog.unshift({
-    timestamp: now.toISOString(),
     time: timestamp,
-    project_id: projectId,
     method: req.method.toUpperCase(),
     path: req.path,
-    route_template: routeTemplate,
     status: parseInt(successCode, 10),
     latency: `${latency}ms`,
   });

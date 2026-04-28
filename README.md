@@ -120,9 +120,8 @@ docker compose up --build -d
 
 ## Environment Variables
 
-Docker Compose reads values from the root `.env` file. The provided
-[.env.example](/Users/manavgarg/Desktop/apiblueprint/.env.example) contains the
-default local setup.
+Docker Compose reads values from the root `.env` file. Copy [.env.example](.env.example)
+to `.env` to get started with the default local setup.
 
 Most important variables:
 
@@ -132,14 +131,14 @@ Most important variables:
 | `POSTGRES_PORT` | Exposed PostgreSQL port |
 | `BACKEND_PORT`, `FRONTEND_PORT`, `MOCK_PORT` | Exposed service ports |
 | `DATABASE_URL` | SQLAlchemy connection string |
-| `CORS_ORIGINS` | Allowed frontend origins for FastAPI |
+| `CORS_ORIGINS` | Allowed frontend origins for FastAPI — must be a valid JSON array string, e.g. `["http://localhost:5173"]` |
 | `BACKEND_URL` | Backend URL used by the mock server |
 | `VITE_API_URL` | Frontend-to-backend API base URL |
 | `VITE_MOCK_URL` | Frontend-to-mock API base URL |
 
 ## Migrations
 
-This project now uses Alembic instead of startup `create_all`.
+This project uses Alembic instead of startup `create_all`.
 
 Important behavior:
 
@@ -148,9 +147,9 @@ Important behavior:
 
 Relevant files:
 
-- [backend/start.sh](/Users/manavgarg/Desktop/apiblueprint/backend/start.sh)
-- [backend/alembic.ini](/Users/manavgarg/Desktop/apiblueprint/backend/alembic.ini)
-- [backend/alembic](/Users/manavgarg/Desktop/apiblueprint/backend/alembic)
+- [backend/start.sh](backend/start.sh)
+- [backend/alembic.ini](backend/alembic.ini)
+- [backend/alembic/](backend/alembic/)
 
 Run migrations manually in local backend development:
 

@@ -4,112 +4,28 @@ import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
-import { buildSuggestedOperationId, normalizeEndpointPath } from '../utils/endpoints';
 
 const TABS = ['Definition', 'Parameters', 'Responses'];
 
-const emptyEndpointDraft = {
-  method: 'GET',
-  path: '',
-  group_name: 'Default',
-  summary: '',
-  operation_id: '',
-  tag: '',
-  description: '',
-};
-
-const fieldInputStyle = {
-  width: '100%',
-  background: '#111',
-  border: '1px solid #242424',
-  borderRadius: 6,
-  padding: '8px 12px',
-  color: '#f0f0f0',
-  fontSize: 12,
-  outline: 'none',
-};
-
-function NewEndpointForm({ draft, onChange, onSubmit, onCancel, saving }) {
-  const suggestedOperationId = buildSuggestedOperationId(draft.method, draft.path);
-
-  return (
-    <form onSubmit={onSubmit} style={{ padding: 12, borderBottom: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ fontSize: 10, color: '#505050', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-        New Endpoint
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '82px 1fr', gap: 8 }}>
-        <select
-          value={draft.method}
-          onChange={event => onChange('method', event.target.value)}
-          style={{ ...fieldInputStyle, fontFamily: 'var(--mono)', color: '#00d4aa' }}
-        >
-          {['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map(method => <option key={method}>{method}</option>)}
-        </select>
-        <input
-          value={draft.path}
-          onChange={event => onChange('path', event.target.value)}
-          placeholder="/users"
-          style={{ ...fieldInputStyle, fontFamily: 'var(--mono)' }}
-        />
-      </div>
-      <input
-        value={draft.group_name}
-        onChange={event => onChange('group_name', event.target.value)}
-        placeholder="Group name"
-        style={fieldInputStyle}
-      />
-      <input
-        value={draft.summary}
-        onChange={event => onChange('summary', event.target.value)}
-        placeholder="Short summary"
-        style={fieldInputStyle}
-      />
-      <div style={{ fontSize: 10, color: '#505050' }}>
-        Suggested operation id: <span style={{ color: '#909090', fontFamily: 'var(--mono)' }}>{suggestedOperationId}</span>
-      </div>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button type="submit" disabled={saving || !draft.path.trim()} style={{ flex: 1, background: '#00d4aa', color: '#000', border: 'none', borderRadius: 6, padding: '8px 10px', fontSize: 12, fontWeight: 600 }}>
-          {saving ? 'Creating...' : 'Create'}
-        </button>
-        <button type="button" onClick={onCancel} style={{ background: 'transparent', color: '#606060', border: '1px solid #242424', borderRadius: 6, padding: '8px 10px', fontSize: 12 }}>
-          Cancel
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function EndpointList({ endpoints, activeEndpoint, onSelect, createState }) {
+function EndpointList({ endpoints, activeEndpoint, onSelect, onAdd }) {
   const groups = [...new Set(endpoints.map(endpoint => endpoint.group_name || 'Default'))];
 
   return (
     <div style={{
-      width: 260, background: '#080808', borderRight: '1px solid #1a1a1a',
+      width: 240, background: '#080808', borderRight: '1px solid #1a1a1a',
       display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden',
     }}>
-      <div style={{ padding: '10px 12px', borderBottom: createState.open ? 'none' : '1px solid #1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: '10px 12px', borderBottom: '1px solid #1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 10, color: '#505050', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Resources</span>
-        <button onClick={createState.open ? createState.onCancel : createState.onOpen} style={{
+        <button onClick={onAdd} style={{
           background: 'rgba(0,212,170,0.1)', border: '1px solid rgba(0,212,170,0.2)',
           color: '#00d4aa', borderRadius: 4, width: 24, height: 24,
           fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          {createState.open ? '×' : '+'}
-        </button>
+        }}>+</button>
       </div>
 
-      {createState.open && (
-        <NewEndpointForm
-          draft={createState.draft}
-          onChange={createState.onChange}
-          onSubmit={createState.onSubmit}
-          onCancel={createState.onCancel}
-          saving={createState.saving}
-        />
-      )}
-
       <div style={{ flex: 1, overflow: 'auto', padding: 6 }}>
-        {endpoints.length === 0 && !createState.open && (
+        {endpoints.length === 0 && (
           <div style={{ padding: 12, color: '#606060', fontSize: 12 }}>
             No endpoints yet. Add one to start building your API surface.
           </div>
@@ -134,14 +50,9 @@ function EndpointList({ endpoints, activeEndpoint, onSelect, createState }) {
                   }}
                 >
                   <span className={`method-badge ${endpoint.method}`}>{endpoint.method}</span>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#b0b0b0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {endpoint.path}
-                    </div>
-                    <div style={{ fontSize: 10, color: '#505050', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {endpoint.summary || 'No summary'}
-                    </div>
-                  </div>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#b0b0b0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {endpoint.path}
+                  </span>
                 </div>
               ))}
           </div>
@@ -152,66 +63,58 @@ function EndpointList({ endpoints, activeEndpoint, onSelect, createState }) {
 }
 
 function DefinitionTab({ endpoint, onSave }) {
-  const [draft, setDraft] = useState(emptyEndpointDraft);
+  const [draft, setDraft] = useState({
+    method: 'GET',
+    path: '',
+    group_name: 'Default',
+    summary: '',
+    operation_id: '',
+    tag: '',
+    description: '',
+  });
   const [saving, setSaving] = useState(false);
-  const [operationIdTouched, setOperationIdTouched] = useState(false);
 
   useEffect(() => {
     if (!endpoint) return;
-    const suggestedOperationId = buildSuggestedOperationId(endpoint.method, endpoint.path);
     setDraft({
       method: endpoint.method || 'GET',
       path: endpoint.path || '',
       group_name: endpoint.group_name || 'Default',
       summary: endpoint.summary || '',
-      operation_id: endpoint.operation_id || suggestedOperationId,
+      operation_id: endpoint.operation_id || '',
       tag: endpoint.tag || '',
       description: endpoint.description || '',
     });
-    setOperationIdTouched(Boolean(endpoint.operation_id && endpoint.operation_id !== suggestedOperationId));
   }, [endpoint]);
 
   if (!endpoint) {
     return <div style={{ color: '#606060', fontSize: 13 }}>Select an endpoint to edit its definition.</div>;
   }
 
-  const suggestedOperationId = buildSuggestedOperationId(draft.method, draft.path);
-
-  function updateDraftField(field, value) {
-    setDraft(current => {
-      const nextDraft = { ...current, [field]: value };
-      if ((field === 'method' || field === 'path') && !operationIdTouched) {
-        nextDraft.operation_id = buildSuggestedOperationId(
-          field === 'method' ? value : nextDraft.method,
-          field === 'path' ? value : nextDraft.path,
-        );
-      }
-      return nextDraft;
-    });
-  }
+  const inputStyle = {
+    width: '100%', background: '#111', border: '1px solid #242424',
+    borderRadius: 6, padding: '8px 12px', color: '#f0f0f0', fontSize: 12,
+    outline: 'none',
+  };
 
   async function handleSave() {
     setSaving(true);
-    await onSave(endpoint.id, {
-      ...draft,
-      path: normalizeEndpointPath(draft.path),
-      operation_id: draft.operation_id.trim() || suggestedOperationId,
-    });
+    await onSave(endpoint.id, draft);
     setSaving(false);
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: 8 }}>
-        <select value={draft.method} onChange={event => updateDraftField('method', event.target.value)}
-          style={{ ...fieldInputStyle, fontFamily: 'var(--mono)', color: '#00d4aa' }}>
+        <select value={draft.method} onChange={event => setDraft(current => ({ ...current, method: event.target.value }))}
+          style={{ ...inputStyle, fontFamily: 'var(--mono)', color: '#00d4aa' }}>
           {['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map(method => <option key={method}>{method}</option>)}
         </select>
         <input
           value={draft.path}
-          onChange={event => updateDraftField('path', event.target.value)}
+          onChange={event => setDraft(current => ({ ...current, path: event.target.value }))}
           placeholder="/users/{id}"
-          style={{ ...fieldInputStyle, fontFamily: 'var(--mono)' }}
+          style={{ ...inputStyle, fontFamily: 'var(--mono)' }}
         />
       </div>
 
@@ -220,47 +123,28 @@ function DefinitionTab({ endpoint, onSave }) {
           value={draft.group_name}
           onChange={event => setDraft(current => ({ ...current, group_name: event.target.value }))}
           placeholder="Group"
-          style={fieldInputStyle}
+          style={inputStyle}
         />
         <input
           value={draft.tag}
           onChange={event => setDraft(current => ({ ...current, tag: event.target.value }))}
           placeholder="Tag"
-          style={fieldInputStyle}
+          style={inputStyle}
         />
       </div>
 
       <input
         value={draft.operation_id}
-        onChange={event => {
-          const value = event.target.value;
-          setDraft(current => ({ ...current, operation_id: value }));
-          setOperationIdTouched(Boolean(value.trim()) && value.trim() !== suggestedOperationId);
-        }}
+        onChange={event => setDraft(current => ({ ...current, operation_id: event.target.value }))}
         placeholder="operation_id"
-        style={{ ...fieldInputStyle, fontFamily: 'var(--mono)' }}
+        style={{ ...inputStyle, fontFamily: 'var(--mono)' }}
       />
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: -8 }}>
-        <div style={{ fontSize: 10, color: '#505050' }}>
-          Suggested: <span style={{ color: '#909090', fontFamily: 'var(--mono)' }}>{suggestedOperationId}</span>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            setDraft(current => ({ ...current, operation_id: suggestedOperationId }));
-            setOperationIdTouched(false);
-          }}
-          style={{ background: 'transparent', border: '1px solid #242424', borderRadius: 4, padding: '4px 8px', color: '#a0a0a0', fontSize: 11, cursor: 'pointer' }}
-        >
-          Use Suggested
-        </button>
-      </div>
 
       <input
         value={draft.summary}
         onChange={event => setDraft(current => ({ ...current, summary: event.target.value }))}
         placeholder="Short summary"
-        style={fieldInputStyle}
+        style={inputStyle}
       />
 
       <textarea
@@ -268,13 +152,13 @@ function DefinitionTab({ endpoint, onSave }) {
         onChange={event => setDraft(current => ({ ...current, description: event.target.value }))}
         rows={5}
         placeholder="Describe what this endpoint does"
-        style={{ ...fieldInputStyle, resize: 'vertical', lineHeight: 1.6 }}
+        style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }}
       />
 
       <div style={{ display: 'flex', gap: 10 }}>
         <button
           onClick={handleSave}
-          disabled={saving || !draft.path.trim()}
+          disabled={saving}
           style={{
             background: '#00d4aa', color: '#000', border: 'none', borderRadius: 6,
             padding: '8px 20px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
@@ -387,24 +271,17 @@ function ParametersTab({ endpoint, onAdd, onSave, onDelete }) {
 function ResponseRow({ endpointId, response, onSave, onDelete }) {
   const [draft, setDraft] = useState(response);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
 
   useEffect(() => {
     setDraft(response);
-    setError('');
   }, [response]);
 
   async function handleSave() {
     setSaving(true);
-    setError('');
-    try {
-      await onSave(response.id, endpointId, {
-        description: draft.description,
-        example: draft.example,
-      });
-    } catch (saveError) {
-      setError(saveError.message);
-    }
+    await onSave(response.id, endpointId, {
+      description: draft.description,
+      example: draft.example,
+    });
     setSaving(false);
   }
 
@@ -432,25 +309,13 @@ function ResponseRow({ endpointId, response, onSave, onDelete }) {
           Delete
         </button>
       </div>
-      {error && <div style={{ marginTop: 8, color: '#ff5c6a', fontSize: 11, whiteSpace: 'pre-wrap' }}>{error}</div>}
     </div>
   );
 }
 
 function ResponsesTab({ endpoint, onAdd, onSave, onDelete }) {
-  const [createError, setCreateError] = useState('');
-
   if (!endpoint) {
     return <div style={{ color: '#606060', fontSize: 13 }}>Select an endpoint to manage responses.</div>;
-  }
-
-  async function handleAddResponse() {
-    setCreateError('');
-    try {
-      await onAdd(endpoint.id, { status_code: '200', description: 'Successful operation', example: '{}' });
-    } catch (error) {
-      setCreateError(error.message);
-    }
   }
 
   return (
@@ -465,12 +330,11 @@ function ResponsesTab({ endpoint, onAdd, onSave, onDelete }) {
         />
       ))}
       <button
-        onClick={handleAddResponse}
+        onClick={() => onAdd(endpoint.id, { status_code: '200', description: 'Successful operation', example: '{}' })}
         style={{ background: 'transparent', border: '1px dashed #242424', borderRadius: 7, padding: '8px', color: '#00d4aa', cursor: 'pointer', fontSize: 12 }}
       >
         + Add response code
       </button>
-      {createError && <div style={{ color: '#ff5c6a', fontSize: 11, whiteSpace: 'pre-wrap' }}>{createError}</div>}
     </div>
   );
 }
@@ -478,7 +342,6 @@ function ResponsesTab({ endpoint, onAdd, onSave, onDelete }) {
 function PreviewPane({ projectId, previewTab, setPreviewTab, previewNonce }) {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -490,7 +353,6 @@ function PreviewPane({ projectId, previewTab, setPreviewTab, previewNonce }) {
       }
 
       setLoading(true);
-      setError('');
       try {
         if (previewTab === 'YAML') {
           const yaml = await api.getSpecYaml(projectId);
@@ -498,11 +360,6 @@ function PreviewPane({ projectId, previewTab, setPreviewTab, previewNonce }) {
         } else {
           const json = await api.getSpecJson(projectId);
           if (!cancelled) setContent(JSON.stringify(json, null, 2));
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          setContent('');
-          setError(loadError.message);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -539,8 +396,6 @@ function PreviewPane({ projectId, previewTab, setPreviewTab, previewNonce }) {
       <div style={{ flex: 1, overflow: 'auto', padding: 12 }}>
         {loading ? (
           <div style={{ color: '#606060', fontSize: 12 }}>Refreshing preview...</div>
-        ) : error ? (
-          <div style={{ color: '#ff5c6a', fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{error}</div>
         ) : (
           <pre style={{ margin: 0, fontFamily: 'var(--mono)', fontSize: 11, lineHeight: 1.7, color: '#b0b0b0', whiteSpace: 'pre-wrap' }}>
             {content || 'No generated spec yet.'}
@@ -570,38 +425,30 @@ export default function Editor() {
   const [activeTab, setActiveTab] = useState('Definition');
   const [previewTab, setPreviewTab] = useState('YAML');
   const [previewNonce, setPreviewNonce] = useState(0);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createSaving, setCreateSaving] = useState(false);
-  const [createDraft, setCreateDraft] = useState(emptyEndpointDraft);
 
   function bumpPreview() {
     setPreviewNonce(current => current + 1);
   }
 
-  function resetCreateForm() {
-    setCreateDraft(emptyEndpointDraft);
-    setCreateOpen(false);
-    setCreateSaving(false);
-  }
+  async function handleAddEndpoint() {
+    if (!activeProject?.id) return;
 
-  async function handleCreateEndpoint(event) {
-    event.preventDefault();
-    if (!activeProject?.id || !createDraft.path.trim()) return;
+    const rawPath = window.prompt('Endpoint path', `/resource-${endpoints.length + 1}`);
+    if (!rawPath) return;
 
-    setCreateSaving(true);
     const endpoint = await addEndpoint(activeProject.id, {
-      ...createDraft,
-      path: normalizeEndpointPath(createDraft.path),
-      group_name: createDraft.group_name.trim() || 'Default',
-      operation_id: buildSuggestedOperationId(createDraft.method, createDraft.path),
+      method: 'GET',
+      path: rawPath.startsWith('/') ? rawPath : `/${rawPath}`,
+      group_name: 'Default',
+      summary: '',
+      operation_id: '',
+      tag: '',
+      description: '',
     });
 
     if (endpoint) {
       setActiveEndpoint(endpoint);
-      resetCreateForm();
       bumpPreview();
-    } else {
-      setCreateSaving(false);
     }
   }
 
@@ -651,29 +498,7 @@ export default function Editor() {
         ]} />
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          <EndpointList
-            endpoints={endpoints}
-            activeEndpoint={activeEndpoint}
-            onSelect={setActiveEndpoint}
-            createState={{
-              open: createOpen,
-              saving: createSaving,
-              draft: createDraft,
-              onOpen: () => setCreateOpen(true),
-              onCancel: resetCreateForm,
-              onChange: (field, value) => setCreateDraft(current => ({
-                ...current,
-                [field]: value,
-                operation_id: ['method', 'path'].includes(field)
-                  ? buildSuggestedOperationId(
-                    field === 'method' ? value : current.method,
-                    field === 'path' ? value : current.path,
-                  )
-                  : current.operation_id,
-              })),
-              onSubmit: handleCreateEndpoint,
-            }}
-          />
+          <EndpointList endpoints={endpoints} activeEndpoint={activeEndpoint} onSelect={setActiveEndpoint} onAdd={handleAddEndpoint} />
 
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#000' }}>
             <div style={{ padding: '12px 20px', borderBottom: '1px solid #1a1a1a', display: 'flex', alignItems: 'center', gap: 10 }}>

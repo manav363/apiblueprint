@@ -21,22 +21,6 @@ TYPE_MAP = {
 }
 
 
-def parse_response_example(resp, endpoint):
-    if not resp.example:
-        return None
-
-    try:
-        return json.loads(resp.example)
-    except json.JSONDecodeError as exc:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                f'Invalid JSON response example for {endpoint.method.upper()} {endpoint.path} '
-                f'[{resp.status_code}]: {exc.msg} at line {exc.lineno}, column {exc.colno}'
-            ),
-        ) from exc
-
-
 def map_field_type(field_type: str | None) -> dict:
     normalized = (field_type or "string").strip()
     if normalized in TYPE_MAP:
@@ -139,11 +123,15 @@ def generate_spec(project) -> dict:
             operation["responses"][resp.status_code] = {
                 "description": resp.description,
             }
-            example_data = parse_response_example(resp, endpoint)
-            if example_data is not None:
-                operation["responses"][resp.status_code]["content"] = {
-                    "application/json": {"example": example_data}
-                }
+            # Try to include example JSON if valid
+            try:
+                example_data = json.loads(resp.example)
+                if example_data:
+                    operation["responses"][resp.status_code]["content"] = {
+                        "application/json": {"example": example_data}
+                    }
+            except Exception:
+                pass
 
         if not operation["responses"]:
             operation["responses"]["200"] = {"description": "Successful operation"}

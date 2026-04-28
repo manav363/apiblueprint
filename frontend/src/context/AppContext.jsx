@@ -61,7 +61,6 @@ export function AppProvider({ children }) {
       const data = await api.listEndpoints(projectId);
       setEndpoints(data);
       setActiveEndpoint(current => data.find(endpoint => endpoint.id === current?.id) || data[0] || null);
-      syncProjectEndpointCount(projectId, data.length);
     } catch (e) {
       setError(e.message);
     }
@@ -103,20 +102,6 @@ export function AppProvider({ children }) {
     }
   }
 
-  function syncProjectEndpointCount(projectId, nextCount) {
-    const nextUpdatedAt = new Date().toISOString();
-    setProjects(items => items.map(project => (
-      project.id === projectId
-        ? { ...project, endpoint_count: nextCount, updated_at: nextUpdatedAt }
-        : project
-    )));
-    setActiveProject(project => (
-      project?.id === projectId
-        ? { ...project, endpoint_count: nextCount, updated_at: nextUpdatedAt }
-        : project
-    ));
-  }
-
   function patchEndpoint(endpointId, transform) {
     setEndpoints(items => items.map(endpoint => (
       endpoint.id === endpointId ? transform(endpoint) : endpoint
@@ -129,11 +114,7 @@ export function AppProvider({ children }) {
   async function addEndpoint(projectId, data) {
     try {
       const ep = await api.createEndpoint(projectId, data);
-      setEndpoints(e => {
-        const nextEndpoints = [...e, ep];
-        syncProjectEndpointCount(projectId, nextEndpoints.length);
-        return nextEndpoints;
-      });
+      setEndpoints(e => [...e, ep]);
       setActiveEndpoint(ep);
       // Reload mock server for this project
       api.reloadMock(projectId).catch(() => {});
@@ -158,13 +139,7 @@ export function AppProvider({ children }) {
   async function deleteEndpoint(id) {
     try {
       await api.deleteEndpoint(id);
-      setEndpoints(e => {
-        const nextEndpoints = e.filter(x => x.id !== id);
-        if (activeProject?.id) {
-          syncProjectEndpointCount(activeProject.id, nextEndpoints.length);
-        }
-        return nextEndpoints;
-      });
+      setEndpoints(e => e.filter(x => x.id !== id));
       if (activeEndpoint?.id === id) setActiveEndpoint(null);
       if (activeProject?.id) api.reloadMock(activeProject.id).catch(() => {});
     } catch (e) {
@@ -224,7 +199,6 @@ export function AppProvider({ children }) {
       return response;
     } catch (e) {
       setError(e.message);
-      throw e;
     }
   }
 
@@ -239,7 +213,6 @@ export function AppProvider({ children }) {
       return response;
     } catch (e) {
       setError(e.message);
-      throw e;
     }
   }
 
