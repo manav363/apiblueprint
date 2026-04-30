@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
@@ -420,11 +420,34 @@ export default function Editor() {
     addResponse,
     updateResponse,
     deleteResponse,
+    searchQuery,
   } = useApp();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('Definition');
   const [previewTab, setPreviewTab] = useState('YAML');
   const [previewNonce, setPreviewNonce] = useState(0);
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+
+  const filteredEndpoints = useMemo(() => {
+    if (!normalizedSearch) return endpoints;
+    return endpoints.filter(endpoint => (
+      endpoint.path.toLowerCase().includes(normalizedSearch)
+      || endpoint.method.toLowerCase().includes(normalizedSearch)
+      || endpoint.group_name.toLowerCase().includes(normalizedSearch)
+      || endpoint.summary.toLowerCase().includes(normalizedSearch)
+      || endpoint.tag.toLowerCase().includes(normalizedSearch)
+    ));
+  }, [endpoints, normalizedSearch]);
+
+  useEffect(() => {
+    if (!filteredEndpoints.length) {
+      setActiveEndpoint(null);
+      return;
+    }
+    if (!activeEndpoint || !filteredEndpoints.find(endpoint => endpoint.id === activeEndpoint.id)) {
+      setActiveEndpoint(filteredEndpoints[0]);
+    }
+  }, [filteredEndpoints, activeEndpoint, setActiveEndpoint]);
 
   function bumpPreview() {
     setPreviewNonce(current => current + 1);
@@ -491,14 +514,17 @@ export default function Editor() {
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <Sidebar />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Topbar tabs={[
+        <Topbar
+          searchPlaceholder="Search endpoints..."
+          tabs={[
           { label: 'Endpoints', path: '/editor' },
           { label: 'Monitoring', path: '/monitoring' },
           { label: 'Documentation', path: '/docs' },
-        ]} />
+        ]}
+        />
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          <EndpointList endpoints={endpoints} activeEndpoint={activeEndpoint} onSelect={setActiveEndpoint} onAdd={handleAddEndpoint} />
+          <EndpointList endpoints={filteredEndpoints} activeEndpoint={activeEndpoint} onSelect={setActiveEndpoint} onAdd={handleAddEndpoint} />
 
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#000' }}>
             <div style={{ padding: '12px 20px', borderBottom: '1px solid #1a1a1a', display: 'flex', alignItems: 'center', gap: 10 }}>

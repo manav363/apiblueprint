@@ -103,7 +103,7 @@ function FieldRow({ field, depth, onAddChild, onDelete }) {
 }
 
 export default function SchemaBuilder() {
-  const { activeProject } = useApp();
+  const { activeProject, searchQuery } = useApp();
   const [schemas, setSchemas] = useState([]);
   const [activeSchemaId, setActiveSchemaId] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -140,7 +140,25 @@ export default function SchemaBuilder() {
     };
   }, [activeProject?.id]);
 
-  const activeSchema = schemas.find(schema => schema.id === activeSchemaId) || null;
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredSchemas = useMemo(() => {
+    if (!normalizedSearch) return schemas;
+    return schemas.filter(schema => schema.name.toLowerCase().includes(normalizedSearch));
+  }, [schemas, normalizedSearch]);
+
+  useEffect(() => {
+    if (!filteredSchemas.length) {
+      setActiveSchemaId(null);
+      return;
+    }
+    if (!filteredSchemas.find(schema => schema.id === activeSchemaId)) {
+      setActiveSchemaId(filteredSchemas[0].id);
+    }
+  }, [filteredSchemas, activeSchemaId]);
+
+  const activeSchema = filteredSchemas.find(schema => schema.id === activeSchemaId)
+    || schemas.find(schema => schema.id === activeSchemaId)
+    || null;
 
   const orderedFields = useMemo(() => {
     if (!activeSchema) return [];
@@ -154,6 +172,17 @@ export default function SchemaBuilder() {
 
     return visit(null);
   }, [activeSchema]);
+
+  const visibleFields = useMemo(() => {
+    if (!normalizedSearch || !activeSchema) return orderedFields;
+    const schemaMatches = activeSchema.name.toLowerCase().includes(normalizedSearch);
+    if (schemaMatches) return orderedFields;
+    return orderedFields.filter(({ field }) => (
+      field.name.toLowerCase().includes(normalizedSearch)
+      || field.type.toLowerCase().includes(normalizedSearch)
+      || (field.description || '').toLowerCase().includes(normalizedSearch)
+    ));
+  }, [orderedFields, activeSchema, normalizedSearch]);
 
   const preview = useMemo(() => {
     if (!activeSchema) return '{\n  "type": "object",\n  "properties": {}\n}';
@@ -228,15 +257,18 @@ export default function SchemaBuilder() {
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <Sidebar />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Topbar tabs={[
+        <Topbar
+          searchPlaceholder="Search schemas and fields..."
+          tabs={[
           { label: 'Schema Builder', path: '/schema' },
-        ]} />
+        ]}
+        />
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           <div style={{ width: 220, background: '#080808', borderRight: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '10px 12px', borderBottom: '1px solid #1a1a1a', fontSize: 10, color: '#505050', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Schemas</div>
             <div style={{ flex: 1, padding: 6, overflow: 'auto' }}>
-              {schemas.map(schema => (
+              {filteredSchemas.map(schema => (
                 <div key={schema.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                   <button onClick={() => setActiveSchemaId(schema.id)} style={{
                     flex: 1,
@@ -260,6 +292,11 @@ export default function SchemaBuilder() {
               {!loading && schemas.length === 0 && (
                 <div style={{ color: '#606060', fontSize: 12, padding: 8 }}>
                   No schemas yet for this project.
+                </div>
+              )}
+              {!loading && filteredSchemas.length === 0 && schemas.length > 0 && (
+                <div style={{ color: '#606060', fontSize: 12, padding: 8 }}>
+                  No schemas match "{searchQuery}".
                 </div>
               )}
             </div>
@@ -303,7 +340,12 @@ export default function SchemaBuilder() {
                   Create or select a schema to manage fields.
                 </div>
               )}
-              {orderedFields.map(({ field, depth }) => (
+              {!loading && activeSchema && visibleFields.length === 0 && normalizedSearch && (
+                <div style={{ padding: 16, color: '#606060', fontSize: 12 }}>
+                  No fields in this schema match "{searchQuery}".
+                </div>
+              )}
+              {visibleFields.map(({ field, depth }) => (
                 <FieldRow
                   key={field.id}
                   field={field}

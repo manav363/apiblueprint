@@ -16,6 +16,21 @@ function toProjectSummary(project) {
   };
 }
 
+function normalizeEndpoint(endpoint) {
+  return {
+    ...endpoint,
+    method: endpoint.method || 'GET',
+    path: endpoint.path || '/',
+    group_name: endpoint.group_name || 'Default',
+    summary: endpoint.summary || '',
+    operation_id: endpoint.operation_id || '',
+    tag: endpoint.tag || '',
+    description: endpoint.description || '',
+    parameters: Array.isArray(endpoint.parameters) ? endpoint.parameters : [],
+    responses: Array.isArray(endpoint.responses) ? endpoint.responses : [],
+  };
+}
+
 export function AppProvider({ children }) {
   const [projects, setProjects] = useState([]);
   const [activeProject, setActiveProject] = useState(null);
@@ -23,6 +38,7 @@ export function AppProvider({ children }) {
   const [activeEndpoint, setActiveEndpoint] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // ── Load projects on mount ─────────────────────────────────────────────────
   useEffect(() => {
@@ -58,7 +74,7 @@ export function AppProvider({ children }) {
 
   async function loadEndpoints(projectId) {
     try {
-      const data = await api.listEndpoints(projectId);
+      const data = (await api.listEndpoints(projectId)).map(normalizeEndpoint);
       setEndpoints(data);
       setActiveEndpoint(current => data.find(endpoint => endpoint.id === current?.id) || data[0] || null);
     } catch (e) {
@@ -113,7 +129,7 @@ export function AppProvider({ children }) {
 
   async function addEndpoint(projectId, data) {
     try {
-      const ep = await api.createEndpoint(projectId, data);
+      const ep = normalizeEndpoint(await api.createEndpoint(projectId, data));
       setEndpoints(e => [...e, ep]);
       setActiveEndpoint(ep);
       // Reload mock server for this project
@@ -126,7 +142,7 @@ export function AppProvider({ children }) {
 
   async function updateEndpoint(id, data) {
     try {
-      const ep = await api.updateEndpoint(id, data);
+      const ep = normalizeEndpoint(await api.updateEndpoint(id, data));
       setEndpoints(e => e.map(x => x.id === id ? ep : x));
       if (activeEndpoint?.id === id) setActiveEndpoint(ep);
       if (activeProject?.id) api.reloadMock(activeProject.id).catch(() => {});
@@ -234,6 +250,7 @@ export function AppProvider({ children }) {
       projects, activeProject, setActiveProject,
       endpoints, activeEndpoint, setActiveEndpoint,
       loading, error,
+      searchQuery, setSearchQuery,
       addProject, deleteProject,
       addEndpoint, updateEndpoint, deleteEndpoint,
       addParameter, updateParameter, deleteParameter,

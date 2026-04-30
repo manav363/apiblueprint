@@ -68,12 +68,13 @@ function buildTypeScriptSdk(endpoints, projectId) {
 }
 
 export default function ExportPage() {
-  const { activeProject, endpoints } = useApp();
+  const { activeProject, endpoints, searchQuery } = useApp();
   const navigate = useNavigate();
   const [sdkLang, setSdkLang] = useState('Python');
   const [copied, setCopied] = useState(false);
   const [yamlSpec, setYamlSpec] = useState('');
   const [stats, setStats] = useState(null);
+  const normalizedSearch = searchQuery.trim().toLowerCase();
 
   useEffect(() => {
     let cancelled = false;
@@ -96,12 +97,30 @@ export default function ExportPage() {
     };
   }, [activeProject?.id, endpoints]);
 
+  const filteredEndpoints = useMemo(() => {
+    if (!normalizedSearch) return endpoints;
+    return endpoints.filter(endpoint => (
+      endpoint.path.toLowerCase().includes(normalizedSearch)
+      || endpoint.method.toLowerCase().includes(normalizedSearch)
+      || (endpoint.summary || '').toLowerCase().includes(normalizedSearch)
+      || (endpoint.tag || '').toLowerCase().includes(normalizedSearch)
+    ));
+  }, [endpoints, normalizedSearch]);
+
   const sdkPreview = useMemo(() => {
     if (!activeProject?.id) return '';
     return sdkLang === 'Python'
-      ? buildPythonSdk(endpoints, activeProject.id)
-      : buildTypeScriptSdk(endpoints, activeProject.id);
-  }, [sdkLang, endpoints, activeProject?.id]);
+      ? buildPythonSdk(filteredEndpoints, activeProject.id)
+      : buildTypeScriptSdk(filteredEndpoints, activeProject.id);
+  }, [sdkLang, filteredEndpoints, activeProject?.id]);
+
+  const yamlPreview = useMemo(() => {
+    if (!normalizedSearch) return yamlSpec;
+    return yamlSpec
+      .split('\n')
+      .filter(line => line.toLowerCase().includes(normalizedSearch))
+      .join('\n');
+  }, [yamlSpec, normalizedSearch]);
 
   async function handleCopy() {
     await navigator.clipboard.writeText(yamlSpec);
@@ -128,7 +147,7 @@ export default function ExportPage() {
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <Sidebar />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Topbar />
+        <Topbar searchPlaceholder="Search spec and SDK..." />
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '12px 20px', borderBottom: '1px solid #1a1a1a', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -151,7 +170,9 @@ export default function ExportPage() {
             <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <span style={{ fontSize: 11, color: '#505050', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>OpenAPI Specification</span>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: '#404040' }}>{yamlSpec.length} bytes</span>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: '#404040' }}>
+                  {normalizedSearch ? `${filteredEndpoints.length} matching endpoints` : `${yamlSpec.length} bytes`}
+                </span>
               </div>
 
               <div style={{ background: '#080808', border: '1px solid #1a1a1a', borderRadius: 8, overflow: 'hidden' }}>
@@ -159,7 +180,7 @@ export default function ExportPage() {
                   {[...Array(3)].map((_, index) => <div key={index} style={{ width: 8, height: 8, borderRadius: '50%', background: ['#ff5c6a', '#f5c842', '#00d4aa'][index] }} />)}
                 </div>
                 <pre style={{ padding: '14px 16px', fontFamily: 'var(--mono)', fontSize: 11, lineHeight: 1.8, overflow: 'auto', margin: 0, color: '#b0b0b0', whiteSpace: 'pre-wrap' }}>
-                  {yamlSpec || 'No generated spec yet.'}
+                  {yamlPreview || (normalizedSearch ? 'No generated spec lines match your search.' : 'No generated spec yet.')}
                 </pre>
               </div>
             </div>

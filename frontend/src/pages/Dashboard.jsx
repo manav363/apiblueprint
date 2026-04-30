@@ -72,10 +72,15 @@ function ProjectCard({ project, onDelete, onOpen }) {
 }
 
 export default function Dashboard() {
-  const { projects, activeProject, addProject, deleteProject, setActiveProject, loading, error } = useApp();
+  const { projects, activeProject, addProject, deleteProject, setActiveProject, loading, error, searchQuery } = useApp();
   const navigate = useNavigate();
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState('');
+
+  const query = searchQuery.toLowerCase();
+  const filteredProjects = query
+    ? projects.filter(p => p.name.toLowerCase().includes(query) || (p.description || '').toLowerCase().includes(query))
+    : projects;
 
   const handleNew = () => {
     if (!newName.trim()) return;
@@ -93,7 +98,7 @@ export default function Dashboard() {
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <Sidebar />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Topbar />
+        <Topbar searchPlaceholder="Search projects..." />
         <main style={{ flex: 1, overflow: 'auto', padding: '28px 32px' }}>
 
           {/* Header */}
@@ -129,8 +134,8 @@ export default function Dashboard() {
           {/* Stats */}
           <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>
               {[
-                { label: 'Total Projects', value: projects.length },
-                { label: 'Total Endpoints', value: projects.reduce((a, p) => a + p.endpoint_count, 0) },
+                { label: 'Total Projects', value: filteredProjects.length },
+                { label: 'Total Endpoints', value: filteredProjects.reduce((a, p) => a + p.endpoint_count, 0) },
                 { label: 'Selected Project', value: activeProject?.name || 'None' },
               ].map(stat => (
               <div key={stat.label} style={{
@@ -150,11 +155,16 @@ export default function Dashboard() {
               No projects yet. Create one to start designing endpoints and generating a live spec.
             </div>
           )}
-          {projects.length > 0 && (
+          {filteredProjects.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-              {projects.map(p => (
+              {filteredProjects.map(p => (
                 <ProjectCard key={p.id} project={p} onDelete={deleteProject} onOpen={handleOpen} />
               ))}
+            </div>
+          )}
+          {!loading && filteredProjects.length === 0 && projects.length > 0 && (
+            <div style={{ background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 10, padding: 24, color: '#707070' }}>
+              No projects match &ldquo;{searchQuery}&rdquo;.
             </div>
           )}
         </main>

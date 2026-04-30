@@ -16,8 +16,22 @@ function buildBarData(logs) {
   }));
 }
 
+function buildLogStats(logs) {
+  const total = logs.length;
+  const errors = logs.filter(log => log.status >= 400).length;
+  const avgLatency = total
+    ? `${Math.round(logs.reduce((sum, log) => sum + (parseInt(log.latency, 10) || 0), 0) / total)}ms`
+    : '0ms';
+
+  return {
+    total_requests: total,
+    avg_latency: avgLatency,
+    error_rate: total ? `${((errors / total) * 100).toFixed(1)}%` : '0%',
+  };
+}
+
 export default function Monitoring() {
-  const { activeProject } = useApp();
+  const { activeProject, searchQuery } = useApp();
   const [logs, setLogs] = useState([]);
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
@@ -53,11 +67,23 @@ export default function Monitoring() {
     };
   }, []);
 
-  const chartData = useMemo(() => buildBarData(logs), [logs]);
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredLogs = useMemo(() => {
+    if (!normalizedSearch) return logs;
+    return logs.filter(log => (
+      log.method.toLowerCase().includes(normalizedSearch)
+      || log.path.toLowerCase().includes(normalizedSearch)
+      || String(log.status).includes(normalizedSearch)
+      || log.time.toLowerCase().includes(normalizedSearch)
+    ));
+  }, [logs, normalizedSearch]);
+  const filteredStats = useMemo(() => buildLogStats(filteredLogs), [filteredLogs]);
+  const chartData = useMemo(() => buildBarData(filteredLogs), [filteredLogs]);
+  const displayStats = normalizedSearch ? { ...stats, ...filteredStats } : stats;
   const metricCards = [
-    { label: 'Total Requests', value: stats?.total_requests ?? logs.length, change: 'live', color: '#00d4aa' },
-    { label: 'Avg Latency', value: stats?.avg_latency || '0ms', change: 'computed from mock traffic', color: '#60a5fa' },
-    { label: 'Error Rate', value: stats?.error_rate || '0%', change: 'all recent responses', color: '#ff5c6a' },
+    { label: 'Total Requests', value: displayStats?.total_requests ?? filteredLogs.length, change: normalizedSearch ? 'matching current search' : 'live', color: '#00d4aa' },
+    { label: 'Avg Latency', value: displayStats?.avg_latency || '0ms', change: normalizedSearch ? 'matching current search' : 'computed from mock traffic', color: '#60a5fa' },
+    { label: 'Error Rate', value: displayStats?.error_rate || '0%', change: normalizedSearch ? 'matching current search' : 'all recent responses', color: '#ff5c6a' },
     { label: 'Uptime', value: stats?.uptime || 'n/a', change: activeProject ? `project ${activeProject.id}` : 'mock server', color: '#f5c842' },
   ];
 
@@ -70,11 +96,14 @@ export default function Monitoring() {
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <Sidebar />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Topbar tabs={[
+        <Topbar
+          searchPlaceholder="Search request logs..."
+          tabs={[
           { label: 'Endpoints', path: '/editor' },
           { label: 'Monitoring', path: '/monitoring' },
           { label: 'Documentation', path: '/docs' },
-        ]} />
+        ]}
+        />
 
         <main style={{ flex: 1, overflow: 'auto', padding: '24px 28px' }}>
           <div style={{ marginBottom: 24, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -140,7 +169,9 @@ export default function Monitoring() {
           <div style={{ background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 8, overflow: 'hidden' }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: '#a0a0a0' }}>Request Log</span>
-              <span style={{ fontSize: 11, color: '#00d4aa' }}>{logs.length} recent requests</span>
+              <span style={{ fontSize: 11, color: '#00d4aa' }}>
+                {filteredLogs.length}{normalizedSearch ? ' matching requests' : ' recent requests'}
+              </span>
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
@@ -153,14 +184,16 @@ export default function Monitoring() {
                 </tr>
               </thead>
               <tbody>
-                {logs.length === 0 && (
+                {filteredLogs.length === 0 && (
                   <tr>
                     <td colSpan={5} style={{ padding: '16px', color: '#606060', fontSize: 12 }}>
-                      No mock traffic yet. Hit a generated mock endpoint and the log will populate here.
+                      {normalizedSearch
+                        ? `No request logs match "${searchQuery}".`
+                        : 'No mock traffic yet. Hit a generated mock endpoint and the log will populate here.'}
                     </td>
                   </tr>
                 )}
-                {logs.map((log, index) => (
+                {filteredLogs.map((log, index) => (
                   <tr key={`${log.time}-${log.path}-${index}`} style={{ borderBottom: '1px solid #111' }}>
                     <td style={{ padding: '9px 16px', fontFamily: 'var(--mono)', fontSize: 11, color: '#404040' }}>{log.time}</td>
                     <td style={{ padding: '9px 16px' }}><span className={`method-badge ${log.method}`}>{log.method}</span></td>

@@ -1,13 +1,48 @@
 const BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const MOCK = import.meta.env.VITE_MOCK_URL || "http://localhost:4010";
+const AUTH_STORAGE_KEY = "apiblueprint.auth.token";
+const AUTH_USER_STORAGE_KEY = "apiblueprint.auth.user";
 
 export const API_BASE_URL = BASE;
 export const MOCK_BASE_URL = MOCK;
 
+function readStoredToken() {
+  if (typeof window === "undefined") return null;
+  return window.sessionStorage.getItem(AUTH_STORAGE_KEY);
+}
+
+function authHeaders(extraHeaders = {}) {
+  const token = readStoredToken();
+  if (!token) return extraHeaders;
+  return { ...extraHeaders, Authorization: `Basic ${token}` };
+}
+
+export function persistAuth(username, password) {
+  if (typeof window === "undefined") return;
+  const token = window.btoa(`${username}:${password}`);
+  window.sessionStorage.setItem(AUTH_STORAGE_KEY, token);
+  window.sessionStorage.setItem(AUTH_USER_STORAGE_KEY, username);
+}
+
+export function clearAuth() {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(AUTH_STORAGE_KEY);
+  window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY);
+}
+
+export function hasStoredAuth() {
+  return Boolean(readStoredToken());
+}
+
+export function getStoredUsername() {
+  if (typeof window === "undefined") return "";
+  return window.sessionStorage.getItem(AUTH_USER_STORAGE_KEY) || "";
+}
+
 async function req(method, path, body) {
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: body ? JSON.stringify(body) : undefined,
   });
   if (res.status === 204) return null;
@@ -19,7 +54,10 @@ async function req(method, path, body) {
 }
 
 async function mockReq(path, options = {}) {
-  const res = await fetch(`${MOCK}${path}`, options);
+  const res = await fetch(`${MOCK}${path}`, {
+    ...options,
+    headers: authHeaders(options.headers || {}),
+  });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || err.error || `HTTP ${res.status}`);
@@ -28,6 +66,7 @@ async function mockReq(path, options = {}) {
 }
 
 export const api = {
+  getSession: () => req("GET", "/api/session"),
   listProjects: () => req("GET", "/api/projects"),
   getProject: (id) => req("GET", `/api/projects/${id}`),
   createProject: (data) => req("POST", "/api/projects", data),
@@ -53,10 +92,22 @@ export const api = {
   createField: (schemaId, data) => req("POST", `/api/schemas/${schemaId}/fields`, data),
   deleteField: (id) => req("DELETE", `/api/fields/${id}`),
 
-  getSpecYaml: (projectId) => fetch(`${BASE}/api/projects/${projectId}/spec`).then(r => r.text()),
+  getSpecYaml: async (projectId) => {
+    const response = await fetch(`${BASE}/api/projects/${projectId}/spec`, {
+      headers: authHeaders(),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${response.status}`);
+    }
+    return response.text();
+  },
   getSpecJson: (projectId) => req("GET", `/api/projects/${projectId}/spec.json`),
 
   getMockLogs: () => mockReq("/mock-logs"),
   getMockStats: () => mockReq("/mock-stats"),
-  reloadMock: (projectId) => mockReq(`/mock/reload/${projectId}`, { method: "POST" }),
+  reloadMock: (projectId) => mockReq(`/mock/reload/${projectId}`, {
+    method: "POST",
+    headers: authHeaders(),
+  }),
 };

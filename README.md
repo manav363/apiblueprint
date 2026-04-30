@@ -71,18 +71,25 @@ flowchart LR
 cp .env.example .env
 ```
 
-2. Build and start the stack:
+2. Edit `.env` before booting the stack:
+
+- Set a strong `POSTGRES_PASSWORD`
+- Set `ADMIN_USERNAME` and `ADMIN_PASSWORD` for the UI, backend, and mock server
+- Leave `ENABLE_API_DOCS=false` unless you intentionally want the FastAPI docs exposed
+
+3. Build and start the stack:
 
 ```bash
 docker compose up --build -d
 ```
 
-3. Open the app:
+4. Open the app:
 
 - Frontend: [http://localhost:5173](http://localhost:5173)
-- Backend docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 - Backend health: [http://localhost:8000/health](http://localhost:8000/health)
 - Mock health: [http://localhost:4010/health](http://localhost:4010/health)
+
+You will be prompted to sign in with the admin credentials from `.env` before the frontend loads project data.
 
 ## Important Docker Commands
 
@@ -131,10 +138,14 @@ Most important variables:
 | `POSTGRES_PORT` | Exposed PostgreSQL port |
 | `BACKEND_PORT`, `FRONTEND_PORT`, `MOCK_PORT` | Exposed service ports |
 | `DATABASE_URL` | SQLAlchemy connection string |
+| `ADMIN_USERNAME`, `ADMIN_PASSWORD` | Basic auth credentials required by the backend, mock server, and frontend login |
 | `CORS_ORIGINS` | Allowed frontend origins for FastAPI — must be a valid JSON array string, e.g. `["http://localhost:5173"]` |
+| `ENABLE_API_DOCS` | Set to `true` only when you intentionally want FastAPI `/docs` and `/openapi.json` exposed |
 | `BACKEND_URL` | Backend URL used by the mock server |
 | `VITE_API_URL` | Frontend-to-backend API base URL |
 | `VITE_MOCK_URL` | Frontend-to-mock API base URL |
+
+Security defaults in this repo now bind published ports to `127.0.0.1`, so the stack is only reachable from the local machine unless you intentionally change the compose file.
 
 ## Migrations
 

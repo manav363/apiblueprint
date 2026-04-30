@@ -1,26 +1,34 @@
 # Environment
 .env
+.env.*
 *.env
+!.env.example
 
 # Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*.egg-info/
 .venv/
 venv/
-*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.sqlite3
 
 # Node
 node_modules/
 npm-debug.log*
 
-# Docker volumes
+# Docker and local data
 postgres_data/
 
-# Build
+# Build output
 dist/
 dist-ssr/
 build/
+frontend/dist/
 
-# macOS
+# OS/editor noise
 .DS_Store

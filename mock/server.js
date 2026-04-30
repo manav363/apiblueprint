@@ -1,17 +1,84 @@
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
+const crypto = require("crypto");
 
 const app = express();
-app.use(cors());
-app.use(express.json());
-
 const BACKEND_URL = process.env.BACKEND_URL || "http://backend:8000";
 const PORT = process.env.PORT || 4010;
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const CORS_ORIGINS = parseOrigins(process.env.CORS_ORIGINS);
+
+if (!ADMIN_USERNAME || !ADMIN_PASSWORD) {
+  throw new Error("ADMIN_USERNAME and ADMIN_PASSWORD must be configured for the mock server");
+}
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || CORS_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error("Origin not allowed by CORS"));
+  },
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Authorization", "Content-Type"],
+}));
+app.use(express.json());
+app.use((req, res, next) => {
+  if (req.path === "/health") {
+    next();
+    return;
+  }
+
+  const authHeader = req.headers.authorization || "";
+  if (!authHeader.startsWith("Basic ")) {
+    res.set("WWW-Authenticate", "Basic");
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+
+  const decoded = Buffer.from(authHeader.slice(6), "base64").toString("utf8");
+  const separator = decoded.indexOf(":");
+  const username = separator >= 0 ? decoded.slice(0, separator) : "";
+  const password = separator >= 0 ? decoded.slice(separator + 1) : "";
+
+  if (!safeEqual(username, ADMIN_USERNAME) || !safeEqual(password, ADMIN_PASSWORD)) {
+    res.set("WWW-Authenticate", "Basic");
+    res.status(401).json({ error: "Invalid credentials" });
+    return;
+  }
+
+  next();
+});
 
 const registeredProjects = new Set();
 const projectSpecs = new Map();
 let requestLog = [];
+const serverStartedAt = Date.now();
+
+function parseOrigins(value) {
+  if (!value) return ["http://localhost:5173", "http://localhost:3000"];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return value.split(",").map(item => item.trim()).filter(Boolean);
+  }
+}
+
+function safeEqual(left, right) {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  if (leftBuffer.length !== rightBuffer.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function buildBackendAuthHeader() {
+  return `Basic ${Buffer.from(`${ADMIN_USERNAME}:${ADMIN_PASSWORD}`).toString("base64")}`;
+}
 
 function resolveSchema(schema, spec) {
   if (!schema) return null;
@@ -97,7 +164,9 @@ function findOperation(spec, method, requestPath) {
 
 async function loadProjectSpec(projectId) {
   try {
-    const res = await axios.get(`${BACKEND_URL}/api/projects/${projectId}/spec.json`);
+    const res = await axios.get(`${BACKEND_URL}/api/projects/${projectId}/spec.json`, {
+      headers: { Authorization: buildBackendAuthHeader() },
+    });
     const spec = res.data;
     projectSpecs.set(projectId, spec);
     registeredProjects.add(projectId);
@@ -126,11 +195,18 @@ app.get("/mock-stats", (req, res) => {
     ? Math.round(requestLog.reduce((a, r) => a + parseInt(r.latency), 0) / requestLog.length)
     : 0;
 
+  const uptimeMs = Date.now() - serverStartedAt;
+  const uptimeSec = Math.floor(uptimeMs / 1000);
+  const hours = Math.floor(uptimeSec / 3600);
+  const minutes = Math.floor((uptimeSec % 3600) / 60);
+  const seconds = uptimeSec % 60;
+  const uptimeStr = `${hours}h ${minutes}m ${seconds}s`;
+
   res.json({
     total_requests: total,
     error_rate: total ? ((errors / total) * 100).toFixed(1) + "%" : "0%",
     avg_latency: avgLatency + "ms",
-    uptime: "99.98%",
+    uptime: uptimeStr,
   });
 });
 

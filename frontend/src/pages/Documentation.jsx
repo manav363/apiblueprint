@@ -11,11 +11,10 @@ const statusColor = (statusCode) => {
 };
 
 export default function Documentation() {
-  const { activeProject, endpoints, activeEndpoint, setActiveEndpoint } = useApp();
-  const [query, setQuery] = useState('');
+  const { activeProject, endpoints, activeEndpoint, setActiveEndpoint, searchQuery, setSearchQuery } = useApp();
 
   const filteredEndpoints = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
+    const normalized = searchQuery.trim().toLowerCase();
     if (!normalized) return endpoints;
     return endpoints.filter(endpoint => (
       endpoint.path.toLowerCase().includes(normalized)
@@ -23,10 +22,13 @@ export default function Documentation() {
       || (endpoint.summary || '').toLowerCase().includes(normalized)
       || (endpoint.tag || '').toLowerCase().includes(normalized)
     ));
-  }, [endpoints, query]);
+  }, [endpoints, searchQuery]);
 
   useEffect(() => {
-    if (!filteredEndpoints.length) return;
+    if (!filteredEndpoints.length) {
+      if (activeEndpoint) setActiveEndpoint(null);
+      return;
+    }
     if (!activeEndpoint || !filteredEndpoints.find(endpoint => endpoint.id === activeEndpoint.id)) {
       setActiveEndpoint(filteredEndpoints[0]);
     }
@@ -38,11 +40,14 @@ export default function Documentation() {
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <Sidebar />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Topbar tabs={[
+        <Topbar
+          searchPlaceholder="Search endpoints..."
+          tabs={[
           { label: 'Endpoints', path: '/editor' },
           { label: 'Monitoring', path: '/monitoring' },
           { label: 'Documentation', path: '/docs' },
-        ]} />
+        ]}
+        />
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           <div style={{ width: 260, background: '#080808', borderRight: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -51,8 +56,8 @@ export default function Documentation() {
               <div style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 6, padding: '6px 10px', display: 'flex', gap: 6, alignItems: 'center' }}>
                 <span style={{ color: '#404040', fontSize: 12 }}>⌕</span>
                 <input
-                  value={query}
-                  onChange={event => setQuery(event.target.value)}
+                  value={searchQuery}
+                  onChange={event => setSearchQuery(event.target.value)}
                   placeholder="Search endpoints..."
                   style={{ background: 'transparent', border: 'none', color: '#808080', fontSize: 11, outline: 'none', width: '100%' }}
                 />
