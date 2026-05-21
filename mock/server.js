@@ -1,17 +1,18 @@
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
-const crypto = require("crypto");
+const jwt = require("jsonwebtoken");
 
 const app = express();
 const BACKEND_URL = process.env.BACKEND_URL || "http://backend:8000";
 const PORT = process.env.PORT || 4010;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const JWT_SECRET = process.env.JWT_SECRET;
 const CORS_ORIGINS = parseOrigins(process.env.CORS_ORIGINS);
 
-if (!ADMIN_USERNAME || !ADMIN_PASSWORD) {
-  throw new Error("ADMIN_USERNAME and ADMIN_PASSWORD must be configured for the mock server");
+if (!ADMIN_USERNAME || !ADMIN_PASSWORD || !JWT_SECRET) {
+  throw new Error("ADMIN_USERNAME, ADMIN_PASSWORD, and JWT_SECRET must be configured for the mock server");
 }
 
 app.use(cors({
@@ -32,20 +33,17 @@ app.use((req, res, next) => {
   }
 
   const authHeader = req.headers.authorization || "";
-  if (!authHeader.startsWith("Basic ")) {
-    res.set("WWW-Authenticate", "Basic");
-    res.status(401).json({ error: "Authentication required" });
+  if (!authHeader.startsWith("Bearer ")) {
+    res.set("WWW-Authenticate", "Bearer");
+    res.status(401).json({ error: "Bearer token required" });
     return;
   }
 
-  const decoded = Buffer.from(authHeader.slice(6), "base64").toString("utf8");
-  const separator = decoded.indexOf(":");
-  const username = separator >= 0 ? decoded.slice(0, separator) : "";
-  const password = separator >= 0 ? decoded.slice(separator + 1) : "";
+  const payload = verifyJwt(authHeader.slice(7));
 
-  if (!safeEqual(username, ADMIN_USERNAME) || !safeEqual(password, ADMIN_PASSWORD)) {
-    res.set("WWW-Authenticate", "Basic");
-    res.status(401).json({ error: "Invalid credentials" });
+  if (!payload) {
+    res.set("WWW-Authenticate", "Bearer");
+    res.status(401).json({ error: "Invalid or expired token" });
     return;
   }
 
@@ -67,17 +65,35 @@ function parseOrigins(value) {
   }
 }
 
-function safeEqual(left, right) {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
-  if (leftBuffer.length !== rightBuffer.length) {
-    return false;
+function createServiceToken() {
+  const now = Math.floor(Date.now() / 1000);
+  return jwt.sign(
+    {
+      sub: ADMIN_USERNAME,
+      iat: now,
+      exp: now + 300,
+      scope: "admin",
+    },
+    JWT_SECRET,
+    { algorithm: "HS256" }
+  );
+}
+
+function verifyJwt(token) {
+  try {
+    const payload = jwt.verify(token, JWT_SECRET, {
+      algorithms: ["HS256"],
+    });
+    if (!payload.sub || payload.sub !== ADMIN_USERNAME) return null;
+    if (payload.scope !== "admin") return null;
+    return payload;
+  } catch {
+    return null;
   }
-  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
 }
 
 function buildBackendAuthHeader() {
-  return `Basic ${Buffer.from(`${ADMIN_USERNAME}:${ADMIN_PASSWORD}`).toString("base64")}`;
+  return `Bearer ${createServiceToken()}`;
 }
 
 function resolveSchema(schema, spec) {
@@ -271,7 +287,11 @@ app.all("/mock/:projectId/*", async (req, res) => {
   }, latency);
 });
 
-app.listen(PORT, () => {
-  console.log(`[Mock] APIBlueprint Mock Server running on port ${PORT}`);
-  console.log(`[Mock] Backend URL: ${BACKEND_URL}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`[Mock] APIBlueprint Mock Server running on port ${PORT}`);
+    console.log(`[Mock] Backend URL: ${BACKEND_URL}`);
+  });
+}
+
+module.exports = app;

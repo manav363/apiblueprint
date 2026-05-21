@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -8,6 +8,8 @@ import SchemaBuilder from './pages/SchemaBuilder';
 import ExportPage from './pages/ExportPage';
 import Monitoring from './pages/Monitoring';
 import Documentation from './pages/Documentation';
+import Settings from './pages/Settings';
+import ApiTester from './pages/ApiTester';
 import { api, clearAuth, getStoredUsername, hasStoredAuth, persistAuth } from './services/api';
 
 function LoginScreen({ onAuthenticated }) {
@@ -51,10 +53,11 @@ function LoginScreen({ onAuthenticated }) {
     event.preventDefault();
     setSubmitting(true);
     setError('');
-    persistAuth(username, password);
 
     try {
-      await api.getSession();
+      const token = await api.login(username, password);
+      persistAuth(token.access_token, token.username);
+      setUsername(token.username);
       onAuthenticated();
     } catch {
       clearAuth();
@@ -123,8 +126,10 @@ function AppRoutes() {
         <Route path="/editor" element={<Editor />} />
         <Route path="/schema" element={<SchemaBuilder />} />
         <Route path="/export" element={<ExportPage />} />
+        <Route path="/tester" element={<ApiTester />} />
         <Route path="/monitoring" element={<Monitoring />} />
         <Route path="/docs" element={<Documentation />} />
+        <Route path="/settings" element={<Settings />} />
       </Routes>
     </ErrorBoundary>
   );

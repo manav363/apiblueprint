@@ -4,9 +4,11 @@ import { useApp } from '../context/AppContext';
 const NAV = [
   { label: 'Dashboard',      icon: '⊞', path: '/' },
   { label: 'Endpoints',      icon: '⇌', path: '/editor' },
+  { label: 'API Tester',     icon: '▶', path: '/tester' },
   { label: 'Schema Builder', icon: '⬡', path: '/schema' },
   { label: 'Monitoring',     icon: '◎', path: '/monitoring' },
   { label: 'Documentation',  icon: '≡', path: '/docs' },
+  { label: 'Settings',       icon: '⚙', path: '/settings' },
 ];
 
 export default function Sidebar() {
@@ -61,12 +63,12 @@ export default function Sidebar() {
             <div style={{ fontSize: 10, color: '#505050', marginTop: 2 }}>{activeProject.endpoint_count} endpoints</div>
           </div>
         )}
-        {['Settings', 'Support'].map(label => (
+        {['Support'].map(label => (
           <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', color: '#505050', cursor: 'pointer', borderRadius: 6 }}
             onMouseEnter={e => e.currentTarget.style.color = '#909090'}
             onMouseLeave={e => e.currentTarget.style.color = '#505050'}
           >
-            <span style={{ fontSize: 12 }}>{label === 'Settings' ? '⚙' : '?'}</span>
+            <span style={{ fontSize: 12 }}>?</span>
             <span style={{ fontSize: 12 }}>{label}</span>
           </div>
         ))}

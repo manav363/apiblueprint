@@ -1,10 +1,22 @@
 import json
-from pydantic import BaseModel, field_validator
-from typing import Optional
 from datetime import datetime
 
+from pydantic import BaseModel, field_validator
 
-def validate_json_example(value: Optional[str]) -> Optional[str]:
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_at: int
+    username: str
+
+
+def validate_json_example(value: str | None) -> str | None:
     if value is None:
         return value
 
@@ -26,19 +38,25 @@ class ParameterBase(BaseModel):
     required: bool = False
     description: str = ""
 
-class ParameterCreate(ParameterBase): pass
+
+class ParameterCreate(ParameterBase):
+    pass
+
 
 class ParameterUpdate(BaseModel):
-    name: Optional[str] = None
-    location: Optional[str] = None
-    type: Optional[str] = None
-    required: Optional[bool] = None
-    description: Optional[str] = None
+    name: str | None = None
+    location: str | None = None
+    type: str | None = None
+    required: bool | None = None
+    description: str | None = None
+
 
 class ParameterOut(ParameterBase):
     id: int
     endpoint_id: int
-    class Config: from_attributes = True
+
+    class Config:
+        from_attributes = True
 
 
 # ── Response ───────────────────────────────────────────────
@@ -52,21 +70,27 @@ class ResponseBase(BaseModel):
     def validate_example(cls, value: str) -> str:
         return validate_json_example(value)
 
-class ResponseCreate(ResponseBase): pass
+
+class ResponseCreate(ResponseBase):
+    pass
+
 
 class ResponseUpdate(BaseModel):
-    description: Optional[str] = None
-    example: Optional[str] = None
+    description: str | None = None
+    example: str | None = None
 
     @field_validator("example")
     @classmethod
-    def validate_example(cls, value: Optional[str]) -> Optional[str]:
+    def validate_example(cls, value: str | None) -> str | None:
         return validate_json_example(value)
+
 
 class ResponseOut(ResponseBase):
     id: int
     endpoint_id: int
-    class Config: from_attributes = True
+
+    class Config:
+        from_attributes = True
 
 
 # ── Endpoint ───────────────────────────────────────────────
@@ -79,23 +103,29 @@ class EndpointBase(BaseModel):
     tag: str = ""
     description: str = ""
 
-class EndpointCreate(EndpointBase): pass
+
+class EndpointCreate(EndpointBase):
+    pass
+
 
 class EndpointUpdate(BaseModel):
-    method: Optional[str] = None
-    path: Optional[str] = None
-    group_name: Optional[str] = None
-    summary: Optional[str] = None
-    operation_id: Optional[str] = None
-    tag: Optional[str] = None
-    description: Optional[str] = None
+    method: str | None = None
+    path: str | None = None
+    group_name: str | None = None
+    summary: str | None = None
+    operation_id: str | None = None
+    tag: str | None = None
+    description: str | None = None
+
 
 class EndpointOut(EndpointBase):
     id: int
     project_id: int
     parameters: list[ParameterOut] = []
     responses: list[ResponseOut] = []
-    class Config: from_attributes = True
+
+    class Config:
+        from_attributes = True
 
 
 # ── SchemaField ────────────────────────────────────────────
@@ -104,27 +134,37 @@ class SchemaFieldBase(BaseModel):
     type: str = "string"
     required: bool = False
     description: str = ""
-    parent_id: Optional[int] = None
+    parent_id: int | None = None
 
-class SchemaFieldCreate(SchemaFieldBase): pass
+
+class SchemaFieldCreate(SchemaFieldBase):
+    pass
+
 
 class SchemaFieldOut(SchemaFieldBase):
     id: int
     schema_id: int
-    class Config: from_attributes = True
+
+    class Config:
+        from_attributes = True
 
 
 # ── Schema ─────────────────────────────────────────────────
 class SchemaBase(BaseModel):
     name: str
 
-class SchemaCreate(SchemaBase): pass
+
+class SchemaCreate(SchemaBase):
+    pass
+
 
 class SchemaOut(SchemaBase):
     id: int
     project_id: int
     fields: list[SchemaFieldOut] = []
-    class Config: from_attributes = True
+
+    class Config:
+        from_attributes = True
 
 
 # ── Project ────────────────────────────────────────────────
@@ -134,13 +174,17 @@ class ProjectBase(BaseModel):
     description: str = ""
     color: str = "#00d4aa"
 
-class ProjectCreate(ProjectBase): pass
+
+class ProjectCreate(ProjectBase):
+    pass
+
 
 class ProjectUpdate(BaseModel):
-    name: Optional[str] = None
-    version: Optional[str] = None
-    description: Optional[str] = None
-    color: Optional[str] = None
+    name: str | None = None
+    version: str | None = None
+    description: str | None = None
+    color: str | None = None
+
 
 class ProjectOut(ProjectBase):
     id: int
@@ -148,11 +192,16 @@ class ProjectOut(ProjectBase):
     updated_at: datetime
     endpoints: list[EndpointOut] = []
     schemas: list[SchemaOut] = []
-    class Config: from_attributes = True
+
+    class Config:
+        from_attributes = True
+
 
 class ProjectSummary(ProjectBase):
     id: int
     created_at: datetime
     updated_at: datetime
     endpoint_count: int = 0
-    class Config: from_attributes = True
+
+    class Config:
+        from_attributes = True

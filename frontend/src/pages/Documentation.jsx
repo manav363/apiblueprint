@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import { useApp } from '../context/AppContext';
@@ -44,6 +44,7 @@ export default function Documentation() {
           searchPlaceholder="Search endpoints..."
           tabs={[
           { label: 'Endpoints', path: '/editor' },
+          { label: 'Tester', path: '/tester' },
           { label: 'Monitoring', path: '/monitoring' },
           { label: 'Documentation', path: '/docs' },
         ]}

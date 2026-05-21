@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+
 from ..core.database import get_db
-from ..models.models import Schema, SchemaField, Project
-from ..models.schemas import SchemaCreate, SchemaOut, SchemaFieldCreate, SchemaFieldOut
+from ..models.models import Project, Schema, SchemaField
+from ..models.schemas import SchemaCreate, SchemaFieldCreate, SchemaFieldOut, SchemaOut
 
 router = APIRouter(tags=["Schemas"])
 
@@ -20,8 +21,13 @@ def create_schema(project_id: int, payload: SchemaCreate, db: Session = Depends(
 
 
 @router.get("/api/projects/{project_id}/schemas", response_model=list[SchemaOut])
-def list_schemas(project_id: int, db: Session = Depends(get_db)):
-    return db.query(Schema).filter(Schema.project_id == project_id).all()
+def list_schemas(
+    project_id: int,
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(500, ge=1, le=1000, description="Maximum number of records to return"),
+    db: Session = Depends(get_db),
+):
+    return db.query(Schema).filter(Schema.project_id == project_id).offset(skip).limit(limit).all()
 
 
 @router.delete("/api/schemas/{schema_id}", status_code=204)

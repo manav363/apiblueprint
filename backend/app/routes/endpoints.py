@@ -1,17 +1,25 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+
 from ..core.database import get_db
-from ..models.models import Endpoint, Parameter, Response, Project
+from ..models.models import Endpoint, Parameter, Project, Response
 from ..models.schemas import (
-    EndpointCreate, EndpointUpdate, EndpointOut,
-    ParameterCreate, ParameterUpdate, ParameterOut,
-    ResponseCreate, ResponseUpdate, ResponseOut,
+    EndpointCreate,
+    EndpointOut,
+    EndpointUpdate,
+    ParameterCreate,
+    ParameterOut,
+    ParameterUpdate,
+    ResponseCreate,
+    ResponseOut,
+    ResponseUpdate,
 )
 
 router = APIRouter(tags=["Endpoints"])
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
+
 
 @router.post("/api/projects/{project_id}/endpoints", response_model=EndpointOut, status_code=201)
 def create_endpoint(project_id: int, payload: EndpointCreate, db: Session = Depends(get_db)):
@@ -26,8 +34,13 @@ def create_endpoint(project_id: int, payload: EndpointCreate, db: Session = Depe
 
 
 @router.get("/api/projects/{project_id}/endpoints", response_model=list[EndpointOut])
-def list_endpoints(project_id: int, db: Session = Depends(get_db)):
-    return db.query(Endpoint).filter(Endpoint.project_id == project_id).all()
+def list_endpoints(
+    project_id: int,
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(500, ge=1, le=1000, description="Maximum number of records to return"),
+    db: Session = Depends(get_db),
+):
+    return db.query(Endpoint).filter(Endpoint.project_id == project_id).offset(skip).limit(limit).all()
 
 
 @router.get("/api/endpoints/{endpoint_id}", response_model=EndpointOut)
@@ -60,6 +73,7 @@ def delete_endpoint(endpoint_id: int, db: Session = Depends(get_db)):
 
 
 # ── Parameters ─────────────────────────────────────────────────────────────────
+
 
 @router.post("/api/endpoints/{endpoint_id}/parameters", response_model=ParameterOut, status_code=201)
 def create_parameter(endpoint_id: int, payload: ParameterCreate, db: Session = Depends(get_db)):
@@ -95,6 +109,7 @@ def delete_parameter(param_id: int, db: Session = Depends(get_db)):
 
 
 # ── Responses ──────────────────────────────────────────────────────────────────
+
 
 @router.post("/api/endpoints/{endpoint_id}/responses", response_model=ResponseOut, status_code=201)
 def create_response(endpoint_id: int, payload: ResponseCreate, db: Session = Depends(get_db)):

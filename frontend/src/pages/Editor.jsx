@@ -414,6 +414,7 @@ export default function Editor() {
     activeProject,
     addEndpoint,
     updateEndpoint,
+    deleteEndpoint,
     addParameter,
     updateParameter,
     deleteParameter,
@@ -480,6 +481,13 @@ export default function Editor() {
     bumpPreview();
   }
 
+  async function handleDeleteEndpoint() {
+    if (!activeEndpoint) return;
+    if (!window.confirm(`Delete ${activeEndpoint.method} ${activeEndpoint.path}?`)) return;
+    await deleteEndpoint(activeEndpoint.id);
+    bumpPreview();
+  }
+
   async function handleAddParameter(endpointId, payload) {
     await addParameter(endpointId, payload);
     bumpPreview();
@@ -518,6 +526,7 @@ export default function Editor() {
           searchPlaceholder="Search endpoints..."
           tabs={[
           { label: 'Endpoints', path: '/editor' },
+          { label: 'Tester', path: '/tester' },
           { label: 'Monitoring', path: '/monitoring' },
           { label: 'Documentation', path: '/docs' },
         ]}
@@ -543,6 +552,12 @@ export default function Editor() {
                 </button>
                 <button onClick={() => navigate('/docs')} style={{ background: 'transparent', border: '1px solid #1e1e1e', borderRadius: 5, padding: '5px 12px', fontSize: 11, color: '#606060', cursor: 'pointer' }}>
                   View Docs
+                </button>
+                <button onClick={() => navigate('/tester')} style={{ background: 'transparent', border: '1px solid #1e1e1e', borderRadius: 5, padding: '5px 12px', fontSize: 11, color: '#606060', cursor: 'pointer' }}>
+                  Test Endpoint
+                </button>
+                <button onClick={handleDeleteEndpoint} disabled={!activeEndpoint} style={{ background: 'transparent', border: '1px solid #1e1e1e', borderRadius: 5, padding: '5px 12px', fontSize: 11, color: activeEndpoint ? '#ff5c6a' : '#404040', cursor: activeEndpoint ? 'pointer' : 'default' }}>
+                  Delete Endpoint
                 </button>
               </div>
             </div>

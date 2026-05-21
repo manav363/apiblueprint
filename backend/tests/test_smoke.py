@@ -3,7 +3,6 @@ import os
 import sys
 import tempfile
 import unittest
-from base64 import b64encode
 from pathlib import Path
 
 TEST_DB_PATH = Path(tempfile.gettempdir()) / "apiblueprint_smoke.sqlite3"
@@ -12,6 +11,8 @@ os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH}"
 os.environ["CORS_ORIGINS"] = '["http://localhost:5173"]'
 os.environ["ADMIN_USERNAME"] = "test-admin"
 os.environ["ADMIN_PASSWORD"] = "test-password"
+os.environ["JWT_SECRET"] = "test-jwt-secret-with-enough-entropy"
+os.environ["JWT_EXPIRES_MINUTES"] = "60"
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
@@ -27,20 +28,32 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.client = TestClient(app)
-        token = b64encode(b"test-admin:test-password").decode("ascii")
-        cls.auth_headers = {"Authorization": f"Basic {token}"}
+        response = cls.client.post(
+            "/api/auth/login",
+            json={
+                "username": "test-admin",
+                "password": "test-password",
+            },
+        )
+        assert response.status_code == 200
+        token = response.json()["access_token"]
+        cls.auth_headers = {"Authorization": f"Bearer {token}"}
 
     def setUp(self):
         Base.metadata.drop_all(bind=engine)
         Base.metadata.create_all(bind=engine)
 
     def create_project(self, name="Billing API"):
-        response = self.client.post("/api/projects", json={
-            "name": name,
-            "version": "v1.0.0",
-            "description": "Test project",
-            "color": "#00d4aa",
-        }, headers=self.auth_headers)
+        response = self.client.post(
+            "/api/projects",
+            json={
+                "name": name,
+                "version": "v1.0.0",
+                "description": "Test project",
+                "color": "#00d4aa",
+            },
+            headers=self.auth_headers,
+        )
         self.assertEqual(response.status_code, 201)
         return response.json()
 
@@ -95,6 +108,41 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok", "service": "apiblueprint-backend"})
 
+    def test_jwt_login_session_and_protected_routes(self):
+        login_response = self.client.post(
+            "/api/auth/login",
+            json={
+                "username": "test-admin",
+                "password": "test-password",
+            },
+        )
+        self.assertEqual(login_response.status_code, 200)
+        token_payload = login_response.json()
+        self.assertEqual(token_payload["token_type"], "bearer")
+        self.assertEqual(token_payload["username"], "test-admin")
+        self.assertTrue(token_payload["access_token"])
+
+        session_response = self.client.get(
+            "/api/session",
+            headers={
+                "Authorization": f"Bearer {token_payload['access_token']}",
+            },
+        )
+        self.assertEqual(session_response.status_code, 200)
+        self.assertEqual(session_response.json(), {"authenticated": True, "username": "test-admin"})
+
+        anonymous_response = self.client.get("/api/projects")
+        self.assertEqual(anonymous_response.status_code, 401)
+
+        invalid_login = self.client.post(
+            "/api/auth/login",
+            json={
+                "username": "test-admin",
+                "password": "wrong-password",
+            },
+        )
+        self.assertEqual(invalid_login.status_code, 401)
+
     def test_project_crud(self):
         created = self.create_project()
         project_id = created["id"]
@@ -110,10 +158,14 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         self.assertEqual(detail_response.status_code, 200)
         self.assertEqual(detail_response.json()["id"], project_id)
 
-        update_response = self.client.put(f"/api/projects/{project_id}", json={
-            "name": "Payments API",
-            "description": "Updated description",
-        }, headers=self.auth_headers)
+        update_response = self.client.put(
+            f"/api/projects/{project_id}",
+            json={
+                "name": "Payments API",
+                "description": "Updated description",
+            },
+            headers=self.auth_headers,
+        )
         self.assertEqual(update_response.status_code, 200)
         updated = update_response.json()
         self.assertEqual(updated["name"], "Payments API")
@@ -139,41 +191,61 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         self.assertEqual(endpoints[0]["group_name"], "Users")
         self.assertEqual(endpoints[0]["operation_id"], "getUser")
 
-        param_response = self.client.post(f"/api/endpoints/{endpoint['id']}/parameters", json={
-            "name": "id",
-            "location": "path",
-            "type": "integer",
-            "required": True,
-            "description": "User id",
-        }, headers=self.auth_headers)
+        param_response = self.client.post(
+            f"/api/endpoints/{endpoint['id']}/parameters",
+            json={
+                "name": "id",
+                "location": "path",
+                "type": "integer",
+                "required": True,
+                "description": "User id",
+            },
+            headers=self.auth_headers,
+        )
         self.assertEqual(param_response.status_code, 201)
         parameter = param_response.json()
 
-        response_response = self.client.post(f"/api/endpoints/{endpoint['id']}/responses", json={
-            "status_code": "200",
-            "description": "User payload",
-            "example": json.dumps({"id": 7, "name": "Ada"}),
-        }, headers=self.auth_headers)
+        response_response = self.client.post(
+            f"/api/endpoints/{endpoint['id']}/responses",
+            json={
+                "status_code": "200",
+                "description": "User payload",
+                "example": json.dumps({"id": 7, "name": "Ada"}),
+            },
+            headers=self.auth_headers,
+        )
         self.assertEqual(response_response.status_code, 201)
         created_response = response_response.json()
 
-        endpoint_update = self.client.put(f"/api/endpoints/{endpoint['id']}", json={
-            "summary": "Fetch user",
-            "description": "Updated endpoint description",
-        }, headers=self.auth_headers)
+        endpoint_update = self.client.put(
+            f"/api/endpoints/{endpoint['id']}",
+            json={
+                "summary": "Fetch user",
+                "description": "Updated endpoint description",
+            },
+            headers=self.auth_headers,
+        )
         self.assertEqual(endpoint_update.status_code, 200)
         self.assertEqual(endpoint_update.json()["summary"], "Fetch user")
 
-        parameter_update = self.client.put(f"/api/parameters/{parameter['id']}", json={
-            "description": "Numeric user id",
-        }, headers=self.auth_headers)
+        parameter_update = self.client.put(
+            f"/api/parameters/{parameter['id']}",
+            json={
+                "description": "Numeric user id",
+            },
+            headers=self.auth_headers,
+        )
         self.assertEqual(parameter_update.status_code, 200)
         self.assertEqual(parameter_update.json()["description"], "Numeric user id")
 
-        response_update = self.client.put(f"/api/responses/{created_response['id']}", json={
-            "description": "Updated response",
-            "example": json.dumps({"id": 7, "name": "Grace"}),
-        }, headers=self.auth_headers)
+        response_update = self.client.put(
+            f"/api/responses/{created_response['id']}",
+            json={
+                "description": "Updated response",
+                "example": json.dumps({"id": 7, "name": "Grace"}),
+            },
+            headers=self.auth_headers,
+        )
         self.assertEqual(response_update.status_code, 200)
         self.assertEqual(response_update.json()["description"], "Updated response")
 
@@ -217,11 +289,15 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         project = self.create_project("Validation API")
         endpoint = self.create_endpoint(project["id"])
 
-        response = self.client.post(f"/api/endpoints/{endpoint['id']}/responses", json={
-            "status_code": "200",
-            "description": "Broken example",
-            "example": '{"id": 7,}',
-        }, headers=self.auth_headers)
+        response = self.client.post(
+            f"/api/endpoints/{endpoint['id']}/responses",
+            json={
+                "status_code": "200",
+                "description": "Broken example",
+                "example": '{"id": 7,}',
+            },
+            headers=self.auth_headers,
+        )
 
         self.assertEqual(response.status_code, 422)
         detail = response.json()["detail"]
@@ -296,6 +372,40 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         )
         self.assertEqual(list_after_delete.status_code, 200)
         self.assertEqual(list_after_delete.json(), [])
+
+    def test_pagination_query_params(self):
+        project = self.create_project("Paginated API")
+        self.create_endpoint(project["id"], method="POST", path="/tasks", operation_id="createTask")
+        self.create_endpoint(project["id"], method="GET", path="/tasks", operation_id="listTasks")
+        self.create_endpoint(project["id"], method="GET", path="/tasks/{id}", operation_id="getTask")
+
+        list_response = self.client.get(
+            f"/api/projects/{project['id']}/endpoints?skip=0&limit=2",
+            headers=self.auth_headers,
+        )
+        self.assertEqual(list_response.status_code, 200)
+        endpoints = list_response.json()
+        self.assertEqual(len(endpoints), 2)
+
+        list_response_page2 = self.client.get(
+            f"/api/projects/{project['id']}/endpoints?skip=2&limit=2",
+            headers=self.auth_headers,
+        )
+        self.assertEqual(list_response_page2.status_code, 200)
+        self.assertEqual(len(list_response_page2.json()), 1)
+
+    def test_standardized_error_format(self):
+        response = self.client.get("/api/projects/99999", headers=self.auth_headers)
+        self.assertEqual(response.status_code, 404)
+        body = response.json()
+        self.assertIn("error", body)
+        self.assertIn("code", body["error"])
+        self.assertIn("message", body["error"])
+        self.assertEqual(body["error"]["code"], 404)
+
+    def test_rate_limit_headers_present(self):
+        response = self.client.get("/health")
+        self.assertEqual(response.status_code, 200)
 
 
 if __name__ == "__main__":

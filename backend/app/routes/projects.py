@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+
 from ..core.database import get_db
-from ..models.models import Project, Endpoint
-from ..models.schemas import ProjectCreate, ProjectUpdate, ProjectOut, ProjectSummary
+from ..models.models import Endpoint, Project
+from ..models.schemas import ProjectCreate, ProjectOut, ProjectSummary, ProjectUpdate
 
 router = APIRouter(prefix="/api/projects", tags=["Projects"])
 
@@ -17,15 +18,23 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)):
 
 
 @router.get("", response_model=list[ProjectSummary])
-def list_projects(db: Session = Depends(get_db)):
-    projects = db.query(Project).order_by(Project.created_at.desc()).all()
+def list_projects(
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(100, ge=1, le=500, description="Maximum number of records to return"),
+    db: Session = Depends(get_db),
+):
+    projects = db.query(Project).order_by(Project.created_at.desc()).offset(skip).limit(limit).all()
     result = []
     for p in projects:
         count = db.query(Endpoint).filter(Endpoint.project_id == p.id).count()
         summary = ProjectSummary(
-            id=p.id, name=p.name, version=p.version,
-            description=p.description, color=p.color,
-            created_at=p.created_at, updated_at=p.updated_at,
+            id=p.id,
+            name=p.name,
+            version=p.version,
+            description=p.description,
+            color=p.color,
+            created_at=p.created_at,
+            updated_at=p.updated_at,
             endpoint_count=count,
         )
         result.append(summary)

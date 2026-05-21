@@ -1,18 +1,24 @@
 # APIBlueprint
 
-APIBlueprint is a full-stack API design studio for modeling REST endpoints,
-storing them in PostgreSQL, generating OpenAPI specs, serving dynamic mock
-routes, and keeping documentation, monitoring, and export views tied to the
-same project data.
+[![CI](https://github.com/manav/APIBlueprint/actions/workflows/ci.yml/badge.svg)](https://github.com/manav/APIBlueprint/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.111.0-009688)](https://fastapi.tiangolo.com/)
+[![React 19](https://img.shields.io/badge/React-19.2-61DAFB?logo=react)](https://react.dev/)
+
+APIBlueprint is a full-stack, contract-first API design studio. Model REST endpoints through a dark-themed web UI, persist them in PostgreSQL, auto-generate OpenAPI 3.0.3 specs, serve dynamic mock endpoints, and keep documentation, monitoring, and export views all tied to the same project data.
 
 ## What It Does
 
 - Create API projects from the UI
+- Edit project metadata and safely delete projects from the UI
+- Generate a starter project with sample endpoints, responses, schemas, and mock routes
 - Define endpoints, parameters, and example responses
 - Build reusable schemas with nested fields
 - Generate OpenAPI JSON and YAML from stored project data
 - Serve spec-driven mock endpoints through a separate mock server
-- Inspect live documentation, export previews, and mock traffic from the same project
+- Test generated mock endpoints from the website without using terminal commands
+- Inspect live documentation, export previews, service health, and mock traffic from the same project
 
 ## System Architecture
 
@@ -74,7 +80,7 @@ cp .env.example .env
 2. Edit `.env` before booting the stack:
 
 - Set a strong `POSTGRES_PASSWORD`
-- Set `ADMIN_USERNAME` and `ADMIN_PASSWORD` for the UI, backend, and mock server
+- Set `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `JWT_SECRET` for the JWT login flow
 - Leave `ENABLE_API_DOCS=false` unless you intentionally want the FastAPI docs exposed
 
 3. Build and start the stack:
@@ -138,7 +144,8 @@ Most important variables:
 | `POSTGRES_PORT` | Exposed PostgreSQL port |
 | `BACKEND_PORT`, `FRONTEND_PORT`, `MOCK_PORT` | Exposed service ports |
 | `DATABASE_URL` | SQLAlchemy connection string |
-| `ADMIN_USERNAME`, `ADMIN_PASSWORD` | Basic auth credentials required by the backend, mock server, and frontend login |
+| `ADMIN_USERNAME`, `ADMIN_PASSWORD` | Admin credentials exchanged for a JWT at login |
+| `JWT_SECRET`, `JWT_EXPIRES_MINUTES` | HS256 signing secret and token lifetime for backend and mock-server JWT validation |
 | `CORS_ORIGINS` | Allowed frontend origins for FastAPI — must be a valid JSON array string, e.g. `["http://localhost:5173"]` |
 | `ENABLE_API_DOCS` | Set to `true` only when you intentionally want FastAPI `/docs` and `/openapi.json` exposed |
 | `BACKEND_URL` | Backend URL used by the mock server |
@@ -213,14 +220,25 @@ If you run services manually, make sure `DATABASE_URL`, `VITE_API_URL`, and
 ### Dashboard
 
 - Create and open API projects
+- Generate a ready-to-edit starter project
+- Edit project name, version, description, and color
+- Confirm destructive project deletion before removing project data
 - View project summaries and endpoint counts
 
 ### Endpoints
 
 - Create endpoints manually
 - Edit method, path, summary, tag, and description
+- Delete endpoints with confirmation
 - Add parameters and example responses
 - Auto-suggest safer `operation_id` values from method plus path
+
+### API Tester
+
+- Select any saved endpoint
+- Fill path, query, and header parameters from the endpoint definition
+- Send requests to the mock server from inside the website
+- Inspect status, latency, response body, response headers, and a curl preview
 
 ### Schema Builder
 
@@ -245,11 +263,23 @@ If you run services manually, make sure `DATABASE_URL`, `VITE_API_URL`, and
 - Preview generated SDK snippets
 - Inspect mock base URL and traffic context
 
+### Settings
+
+- Edit the active project metadata
+- Check backend and mock service health
+- Create a starter project from the operations panel
+- Refresh the project list from persisted backend state
+
 ## Backend API Overview
 
 ### Health
 
 - `GET /health`
+
+### Auth
+
+- `POST /api/auth/login`
+- `GET /api/session`
 
 ### Projects
 

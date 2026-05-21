@@ -14,12 +14,11 @@ function readStoredToken() {
 function authHeaders(extraHeaders = {}) {
   const token = readStoredToken();
   if (!token) return extraHeaders;
-  return { ...extraHeaders, Authorization: `Basic ${token}` };
+  return { ...extraHeaders, Authorization: `Bearer ${token}` };
 }
 
-export function persistAuth(username, password) {
+export function persistAuth(token, username) {
   if (typeof window === "undefined") return;
-  const token = window.btoa(`${username}:${password}`);
   window.sessionStorage.setItem(AUTH_STORAGE_KEY, token);
   window.sessionStorage.setItem(AUTH_USER_STORAGE_KEY, username);
 }
@@ -65,7 +64,57 @@ async function mockReq(path, options = {}) {
   return res.json();
 }
 
+async function serviceHealth(baseUrl) {
+  const res = await fetch(`${baseUrl}/health`);
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+async function testMockEndpoint(path, options = {}) {
+  const startedAt = performance.now();
+  const res = await fetch(`${MOCK}${path}`, {
+    method: options.method || "GET",
+    headers: authHeaders(options.headers || {}),
+    body: options.body,
+  });
+  const durationMs = Math.round(performance.now() - startedAt);
+  const bodyText = await res.text();
+  const parsedBody = (() => {
+    try {
+      return bodyText ? JSON.parse(bodyText) : null;
+    } catch {
+      return bodyText;
+    }
+  })();
+
+  return {
+    ok: res.ok,
+    status: res.status,
+    statusText: res.statusText,
+    durationMs,
+    headers: Object.fromEntries(res.headers.entries()),
+    body: parsedBody,
+    bodyText,
+  };
+}
+
 export const api = {
+  getBackendHealth: () => serviceHealth(BASE),
+  getMockHealth: () => serviceHealth(MOCK),
+  login: async (username, password) => {
+    const res = await fetch(`${BASE}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    return res.json();
+  },
   getSession: () => req("GET", "/api/session"),
   listProjects: () => req("GET", "/api/projects"),
   getProject: (id) => req("GET", `/api/projects/${id}`),
@@ -106,6 +155,7 @@ export const api = {
 
   getMockLogs: () => mockReq("/mock-logs"),
   getMockStats: () => mockReq("/mock-stats"),
+  testMockEndpoint,
   reloadMock: (projectId) => mockReq(`/mock/reload/${projectId}`, {
     method: "POST",
     headers: authHeaders(),

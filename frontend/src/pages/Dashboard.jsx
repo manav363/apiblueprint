@@ -9,7 +9,7 @@ function formatDate(value) {
   return new Date(value).toLocaleString();
 }
 
-function ProjectCard({ project, onDelete, onOpen }) {
+function ProjectCard({ project, onDelete, onEdit, onOpen }) {
   const [hovered, setHovered] = useState(false);
   return (
     <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
@@ -59,6 +59,13 @@ function ProjectCard({ project, onDelete, onOpen }) {
           onMouseEnter={e => { e.target.style.borderColor = '#00d4aa'; e.target.style.color = '#00d4aa'; }}
           onMouseLeave={e => { e.target.style.borderColor = '#242424'; e.target.style.color = '#a0a0a0'; }}
         >Open</button>
+        <button onClick={() => onEdit(project)} style={{
+          width: 46, background: 'transparent', border: '1px solid #242424',
+          borderRadius: 6, fontSize: 12, color: '#606060', cursor: 'pointer', transition: 'all 0.15s',
+        }}
+          onMouseEnter={e => { e.target.style.borderColor = '#60a5fa'; e.target.style.color = '#60a5fa'; }}
+          onMouseLeave={e => { e.target.style.borderColor = '#242424'; e.target.style.color = '#606060'; }}
+        >Edit</button>
         <button onClick={() => onDelete(project.id)} style={{
           width: 32, background: 'transparent', border: '1px solid #242424',
           borderRadius: 6, fontSize: 13, color: '#404040', cursor: 'pointer', transition: 'all 0.15s',
@@ -72,10 +79,23 @@ function ProjectCard({ project, onDelete, onOpen }) {
 }
 
 export default function Dashboard() {
-  const { projects, activeProject, addProject, deleteProject, setActiveProject, loading, error, searchQuery } = useApp();
+  const {
+    projects,
+    activeProject,
+    addProject,
+    createStarterProject,
+    deleteProject,
+    updateProject,
+    setActiveProject,
+    loading,
+    error,
+    searchQuery,
+  } = useApp();
   const navigate = useNavigate();
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState('');
+  const [editingProject, setEditingProject] = useState(null);
+  const [draft, setDraft] = useState({ name: '', version: '', description: '', color: '#00d4aa' });
 
   const query = searchQuery.toLowerCase();
   const filteredProjects = query
@@ -94,6 +114,38 @@ export default function Dashboard() {
     navigate('/editor');
   };
 
+  const handleDelete = (projectId) => {
+    const project = projects.find(item => item.id === projectId);
+    if (!window.confirm(`Delete ${project?.name || 'this project'} and all of its endpoints and schemas?`)) return;
+    deleteProject(projectId);
+  };
+
+  const handleEdit = (project) => {
+    setEditingProject(project);
+    setDraft({
+      name: project.name,
+      version: project.version,
+      description: project.description || '',
+      color: project.color || '#00d4aa',
+    });
+  };
+
+  async function handleSaveProject() {
+    if (!editingProject || !draft.name.trim()) return;
+    await updateProject(editingProject.id, {
+      name: draft.name.trim(),
+      version: draft.version.trim() || 'v1.0.0',
+      description: draft.description,
+      color: draft.color || '#00d4aa',
+    });
+    setEditingProject(null);
+  }
+
+  async function handleStarterProject() {
+    const project = await createStarterProject();
+    if (project) navigate('/editor');
+  }
+
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <Sidebar />
@@ -108,6 +160,13 @@ export default function Dashboard() {
               <p style={{ color: '#606060', fontSize: 12 }}>Manage your API architectures and deployment pipelines.</p>
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={handleStarterProject} style={{
+                background: 'transparent', color: '#a0a0a0', border: '1px solid #242424',
+                borderRadius: 7, padding: '9px 14px', fontSize: 12, fontWeight: 600,
+                cursor: 'pointer',
+              }}>
+                Starter Project
+              </button>
               {showNew && (
                 <input value={newName} onChange={e => setNewName(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleNew()}
@@ -152,13 +211,17 @@ export default function Dashboard() {
           {error && <div style={{ color: '#ff5c6a', fontSize: 12, marginBottom: 12 }}>{error}</div>}
           {!loading && projects.length === 0 && (
             <div style={{ background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 10, padding: 24, color: '#707070' }}>
-              No projects yet. Create one to start designing endpoints and generating a live spec.
+              <div style={{ fontSize: 14, color: '#d0d0d0', marginBottom: 8 }}>No projects yet.</div>
+              <div style={{ fontSize: 12, lineHeight: 1.7, marginBottom: 14 }}>Create a blank project or generate a starter project with example endpoints, responses, schema fields, and mock routes.</div>
+              <button onClick={handleStarterProject} style={{ background: '#00d4aa', color: '#000', border: 'none', borderRadius: 7, padding: '9px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                Create Starter Project
+              </button>
             </div>
           )}
           {filteredProjects.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
               {filteredProjects.map(p => (
-                <ProjectCard key={p.id} project={p} onDelete={deleteProject} onOpen={handleOpen} />
+                <ProjectCard key={p.id} project={p} onDelete={handleDelete} onEdit={handleEdit} onOpen={handleOpen} />
               ))}
             </div>
           )}
@@ -169,6 +232,27 @@ export default function Dashboard() {
           )}
         </main>
       </div>
+
+      {editingProject && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', display: 'grid', placeItems: 'center', padding: 24 }}>
+          <div style={{ width: '100%', maxWidth: 460, background: '#0d0d0d', border: '1px solid #242424', borderRadius: 10, padding: 20, boxShadow: '0 24px 80px rgba(0,0,0,0.6)' }}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Project Settings</div>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <input value={draft.name} onChange={event => setDraft(current => ({ ...current, name: event.target.value }))} placeholder="Project name" style={{ background: '#111', border: '1px solid #242424', borderRadius: 6, padding: '9px 12px', color: '#f0f0f0', fontSize: 12, outline: 'none' }} />
+              <input value={draft.version} onChange={event => setDraft(current => ({ ...current, version: event.target.value }))} placeholder="Version" style={{ background: '#111', border: '1px solid #242424', borderRadius: 6, padding: '9px 12px', color: '#f0f0f0', fontSize: 12, outline: 'none' }} />
+              <textarea value={draft.description} onChange={event => setDraft(current => ({ ...current, description: event.target.value }))} rows={4} placeholder="Project description" style={{ background: '#111', border: '1px solid #242424', borderRadius: 6, padding: '9px 12px', color: '#f0f0f0', fontSize: 12, outline: 'none', resize: 'vertical', lineHeight: 1.6 }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <input type="color" value={draft.color} onChange={event => setDraft(current => ({ ...current, color: event.target.value }))} style={{ width: 38, height: 34, background: '#111', border: '1px solid #242424', borderRadius: 6 }} />
+                <span style={{ fontSize: 11, color: '#606060', fontFamily: 'var(--mono)' }}>{draft.color}</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+              <button onClick={() => setEditingProject(null)} style={{ background: 'transparent', border: '1px solid #242424', borderRadius: 6, padding: '8px 14px', color: '#a0a0a0', fontSize: 12 }}>Cancel</button>
+              <button onClick={handleSaveProject} disabled={!draft.name.trim()} style={{ background: '#00d4aa', color: '#000', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 12, fontWeight: 600, opacity: draft.name.trim() ? 1 : 0.6 }}>Save Project</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

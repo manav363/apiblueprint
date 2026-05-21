@@ -31,7 +31,13 @@ services:
       CORS_ORIGINS: '${CORS_ORIGINS:-["http://localhost:5173","http://localhost:3000"]}'
       ADMIN_USERNAME: ${ADMIN_USERNAME:?Set ADMIN_USERNAME in .env}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      JWT_EXPIRES_MINUTES: ${JWT_EXPIRES_MINUTES:-60}
       ENABLE_API_DOCS: ${ENABLE_API_DOCS:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
+      MAX_REQUEST_BODY_SIZE_MB: ${MAX_REQUEST_BODY_SIZE_MB:-5}
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     depends_on:
@@ -53,6 +59,7 @@ services:
       CORS_ORIGINS: '${CORS_ORIGINS:-["http://localhost:5173","http://localhost:3000"]}'
       ADMIN_USERNAME: ${ADMIN_USERNAME:?Set ADMIN_USERNAME in .env}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
     ports:
       - "127.0.0.1:${MOCK_PORT:-4010}:${MOCK_PORT:-4010}"
     depends_on:

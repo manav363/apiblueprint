@@ -100,6 +100,7 @@ export default function Monitoring() {
           searchPlaceholder="Search request logs..."
           tabs={[
           { label: 'Endpoints', path: '/editor' },
+          { label: 'Tester', path: '/tester' },
           { label: 'Monitoring', path: '/monitoring' },
           { label: 'Documentation', path: '/docs' },
         ]}
