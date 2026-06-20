@@ -14,8 +14,14 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_MINUTE: int = 60
     MAX_REQUEST_BODY_SIZE_MB: int = 5
     ALLOWED_HOSTS: str | None = None
+    GZIP_MIN_SIZE_BYTES: int = 500
+    HSTS_MAX_AGE_SECONDS: int = 31536000  # 1 year; only emitted over HTTPS
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+
+# All versioned data routes (projects, endpoints, schemas, spec) hang off this.
+# Auth, session, and health checks stay unversioned — they are cross-cutting.
+API_V1_PREFIX = "/api/v1"
 
 settings = Settings()

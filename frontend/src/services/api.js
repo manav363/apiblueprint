@@ -1,5 +1,6 @@
 const BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const MOCK = import.meta.env.VITE_MOCK_URL || "http://localhost:4010";
+const V1 = "/api/v1";
 const AUTH_STORAGE_KEY = "apiblueprint.auth.token";
 const AUTH_USER_STORAGE_KEY = "apiblueprint.auth.user";
 
@@ -47,7 +48,7 @@ async function req(method, path, body) {
   if (res.status === 204) return null;
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `HTTP ${res.status}`);
+    throw new Error(err.error?.message || err.detail || `HTTP ${res.status}`);
   }
   return res.json();
 }
@@ -116,42 +117,42 @@ export const api = {
     return res.json();
   },
   getSession: () => req("GET", "/api/session"),
-  listProjects: () => req("GET", "/api/projects"),
-  getProject: (id) => req("GET", `/api/projects/${id}`),
-  createProject: (data) => req("POST", "/api/projects", data),
-  updateProject: (id, data) => req("PUT", `/api/projects/${id}`, data),
-  deleteProject: (id) => req("DELETE", `/api/projects/${id}`),
+  listProjects: () => req("GET", `${V1}/projects`),
+  getProject: (id) => req("GET", `${V1}/projects/${id}`),
+  createProject: (data) => req("POST", `${V1}/projects`, data),
+  updateProject: (id, data) => req("PUT", `${V1}/projects/${id}`, data),
+  deleteProject: (id) => req("DELETE", `${V1}/projects/${id}`),
 
-  listEndpoints: (projectId) => req("GET", `/api/projects/${projectId}/endpoints`),
-  createEndpoint: (projectId, data) => req("POST", `/api/projects/${projectId}/endpoints`, data),
-  updateEndpoint: (id, data) => req("PUT", `/api/endpoints/${id}`, data),
-  deleteEndpoint: (id) => req("DELETE", `/api/endpoints/${id}`),
+  listEndpoints: (projectId) => req("GET", `${V1}/projects/${projectId}/endpoints`),
+  createEndpoint: (projectId, data) => req("POST", `${V1}/projects/${projectId}/endpoints`, data),
+  updateEndpoint: (id, data) => req("PUT", `${V1}/endpoints/${id}`, data),
+  deleteEndpoint: (id) => req("DELETE", `${V1}/endpoints/${id}`),
 
-  createParameter: (endpointId, data) => req("POST", `/api/endpoints/${endpointId}/parameters`, data),
-  updateParameter: (id, data) => req("PUT", `/api/parameters/${id}`, data),
-  deleteParameter: (id) => req("DELETE", `/api/parameters/${id}`),
+  createParameter: (endpointId, data) => req("POST", `${V1}/endpoints/${endpointId}/parameters`, data),
+  updateParameter: (id, data) => req("PUT", `${V1}/parameters/${id}`, data),
+  deleteParameter: (id) => req("DELETE", `${V1}/parameters/${id}`),
 
-  createResponse: (endpointId, data) => req("POST", `/api/endpoints/${endpointId}/responses`, data),
-  updateResponse: (id, data) => req("PUT", `/api/responses/${id}`, data),
-  deleteResponse: (id) => req("DELETE", `/api/responses/${id}`),
+  createResponse: (endpointId, data) => req("POST", `${V1}/endpoints/${endpointId}/responses`, data),
+  updateResponse: (id, data) => req("PUT", `${V1}/responses/${id}`, data),
+  deleteResponse: (id) => req("DELETE", `${V1}/responses/${id}`),
 
-  listSchemas: (projectId) => req("GET", `/api/projects/${projectId}/schemas`),
-  createSchema: (projectId, data) => req("POST", `/api/projects/${projectId}/schemas`, data),
-  deleteSchema: (id) => req("DELETE", `/api/schemas/${id}`),
-  createField: (schemaId, data) => req("POST", `/api/schemas/${schemaId}/fields`, data),
-  deleteField: (id) => req("DELETE", `/api/fields/${id}`),
+  listSchemas: (projectId) => req("GET", `${V1}/projects/${projectId}/schemas`),
+  createSchema: (projectId, data) => req("POST", `${V1}/projects/${projectId}/schemas`, data),
+  deleteSchema: (id) => req("DELETE", `${V1}/schemas/${id}`),
+  createField: (schemaId, data) => req("POST", `${V1}/schemas/${schemaId}/fields`, data),
+  deleteField: (id) => req("DELETE", `${V1}/fields/${id}`),
 
   getSpecYaml: async (projectId) => {
-    const response = await fetch(`${BASE}/api/projects/${projectId}/spec`, {
+    const response = await fetch(`${BASE}${V1}/projects/${projectId}/spec`, {
       headers: authHeaders(),
     });
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `HTTP ${response.status}`);
+      throw new Error(err.error?.message || err.detail || `HTTP ${response.status}`);
     }
     return response.text();
   },
-  getSpecJson: (projectId) => req("GET", `/api/projects/${projectId}/spec.json`),
+  getSpecJson: (projectId) => req("GET", `${V1}/projects/${projectId}/spec.json`),
 
   getMockLogs: () => mockReq("/mock-logs"),
   getMockStats: () => mockReq("/mock-stats"),

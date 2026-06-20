@@ -45,7 +45,7 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
 
     def create_project(self, name="Billing API"):
         response = self.client.post(
-            "/api/projects",
+            "/api/v1/projects",
             json={
                 "name": name,
                 "version": "v1.0.0",
@@ -69,7 +69,7 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         }
         payload.update(overrides)
         response = self.client.post(
-            f"/api/projects/{project_id}/endpoints",
+            f"/api/v1/projects/{project_id}/endpoints",
             json=payload,
             headers=self.auth_headers,
         )
@@ -78,7 +78,7 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
 
     def create_schema(self, project_id, name="User"):
         response = self.client.post(
-            f"/api/projects/{project_id}/schemas",
+            f"/api/v1/projects/{project_id}/schemas",
             json={"name": name},
             headers=self.auth_headers,
         )
@@ -95,7 +95,7 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         }
         payload.update(overrides)
         response = self.client.post(
-            f"/api/schemas/{schema_id}/fields",
+            f"/api/v1/schemas/{schema_id}/fields",
             json=payload,
             headers=self.auth_headers,
         )
@@ -131,7 +131,7 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         self.assertEqual(session_response.status_code, 200)
         self.assertEqual(session_response.json(), {"authenticated": True, "username": "test-admin"})
 
-        anonymous_response = self.client.get("/api/projects")
+        anonymous_response = self.client.get("/api/v1/projects")
         self.assertEqual(anonymous_response.status_code, 401)
 
         invalid_login = self.client.post(
@@ -147,19 +147,19 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         created = self.create_project()
         project_id = created["id"]
 
-        list_response = self.client.get("/api/projects", headers=self.auth_headers)
+        list_response = self.client.get("/api/v1/projects", headers=self.auth_headers)
         self.assertEqual(list_response.status_code, 200)
         projects = list_response.json()
         self.assertEqual(len(projects), 1)
         self.assertEqual(projects[0]["endpoint_count"], 0)
         self.assertEqual(projects[0]["name"], "Billing API")
 
-        detail_response = self.client.get(f"/api/projects/{project_id}", headers=self.auth_headers)
+        detail_response = self.client.get(f"/api/v1/projects/{project_id}", headers=self.auth_headers)
         self.assertEqual(detail_response.status_code, 200)
         self.assertEqual(detail_response.json()["id"], project_id)
 
         update_response = self.client.put(
-            f"/api/projects/{project_id}",
+            f"/api/v1/projects/{project_id}",
             json={
                 "name": "Payments API",
                 "description": "Updated description",
@@ -171,10 +171,10 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         self.assertEqual(updated["name"], "Payments API")
         self.assertEqual(updated["description"], "Updated description")
 
-        delete_response = self.client.delete(f"/api/projects/{project_id}", headers=self.auth_headers)
+        delete_response = self.client.delete(f"/api/v1/projects/{project_id}", headers=self.auth_headers)
         self.assertEqual(delete_response.status_code, 204)
 
-        missing_response = self.client.get(f"/api/projects/{project_id}", headers=self.auth_headers)
+        missing_response = self.client.get(f"/api/v1/projects/{project_id}", headers=self.auth_headers)
         self.assertEqual(missing_response.status_code, 404)
 
     def test_endpoint_crud_parameter_response_and_spec_export(self):
@@ -182,7 +182,7 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         endpoint = self.create_endpoint(project["id"])
 
         list_response = self.client.get(
-            f"/api/projects/{project['id']}/endpoints",
+            f"/api/v1/projects/{project['id']}/endpoints",
             headers=self.auth_headers,
         )
         self.assertEqual(list_response.status_code, 200)
@@ -192,7 +192,7 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         self.assertEqual(endpoints[0]["operation_id"], "getUser")
 
         param_response = self.client.post(
-            f"/api/endpoints/{endpoint['id']}/parameters",
+            f"/api/v1/endpoints/{endpoint['id']}/parameters",
             json={
                 "name": "id",
                 "location": "path",
@@ -206,7 +206,7 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         parameter = param_response.json()
 
         response_response = self.client.post(
-            f"/api/endpoints/{endpoint['id']}/responses",
+            f"/api/v1/endpoints/{endpoint['id']}/responses",
             json={
                 "status_code": "200",
                 "description": "User payload",
@@ -218,7 +218,7 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         created_response = response_response.json()
 
         endpoint_update = self.client.put(
-            f"/api/endpoints/{endpoint['id']}",
+            f"/api/v1/endpoints/{endpoint['id']}",
             json={
                 "summary": "Fetch user",
                 "description": "Updated endpoint description",
@@ -229,7 +229,7 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         self.assertEqual(endpoint_update.json()["summary"], "Fetch user")
 
         parameter_update = self.client.put(
-            f"/api/parameters/{parameter['id']}",
+            f"/api/v1/parameters/{parameter['id']}",
             json={
                 "description": "Numeric user id",
             },
@@ -239,7 +239,7 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         self.assertEqual(parameter_update.json()["description"], "Numeric user id")
 
         response_update = self.client.put(
-            f"/api/responses/{created_response['id']}",
+            f"/api/v1/responses/{created_response['id']}",
             json={
                 "description": "Updated response",
                 "example": json.dumps({"id": 7, "name": "Grace"}),
@@ -250,7 +250,7 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         self.assertEqual(response_update.json()["description"], "Updated response")
 
         spec_json_response = self.client.get(
-            f"/api/projects/{project['id']}/spec.json",
+            f"/api/v1/projects/{project['id']}/spec.json",
             headers=self.auth_headers,
         )
         self.assertEqual(spec_json_response.status_code, 200)
@@ -265,7 +265,7 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         )
 
         spec_yaml_response = self.client.get(
-            f"/api/projects/{project['id']}/spec",
+            f"/api/v1/projects/{project['id']}/spec",
             headers=self.auth_headers,
         )
         self.assertEqual(spec_yaml_response.status_code, 200)
@@ -273,13 +273,13 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         self.assertIn("/users/{id}:", spec_yaml_response.text)
 
         delete_response = self.client.delete(
-            f"/api/endpoints/{endpoint['id']}",
+            f"/api/v1/endpoints/{endpoint['id']}",
             headers=self.auth_headers,
         )
         self.assertEqual(delete_response.status_code, 204)
 
         list_after_delete = self.client.get(
-            f"/api/projects/{project['id']}/endpoints",
+            f"/api/v1/projects/{project['id']}/endpoints",
             headers=self.auth_headers,
         )
         self.assertEqual(list_after_delete.status_code, 200)
@@ -290,7 +290,7 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         endpoint = self.create_endpoint(project["id"])
 
         response = self.client.post(
-            f"/api/endpoints/{endpoint['id']}/responses",
+            f"/api/v1/endpoints/{endpoint['id']}/responses",
             json={
                 "status_code": "200",
                 "description": "Broken example",
@@ -333,7 +333,7 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         )
 
         list_response = self.client.get(
-            f"/api/projects/{project['id']}/schemas",
+            f"/api/v1/projects/{project['id']}/schemas",
             headers=self.auth_headers,
         )
         self.assertEqual(list_response.status_code, 200)
@@ -343,7 +343,7 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         self.assertEqual(len(schemas[0]["fields"]), 3)
 
         spec_response = self.client.get(
-            f"/api/projects/{project['id']}/spec.json",
+            f"/api/v1/projects/{project['id']}/spec.json",
             headers=self.auth_headers,
         )
         self.assertEqual(spec_response.status_code, 200)
@@ -361,13 +361,13 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         self.assertIn("profile", user_schema["required"])
 
         delete_schema_response = self.client.delete(
-            f"/api/schemas/{schema['id']}",
+            f"/api/v1/schemas/{schema['id']}",
             headers=self.auth_headers,
         )
         self.assertEqual(delete_schema_response.status_code, 204)
 
         list_after_delete = self.client.get(
-            f"/api/projects/{project['id']}/schemas",
+            f"/api/v1/projects/{project['id']}/schemas",
             headers=self.auth_headers,
         )
         self.assertEqual(list_after_delete.status_code, 200)
@@ -380,7 +380,7 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         self.create_endpoint(project["id"], method="GET", path="/tasks/{id}", operation_id="getTask")
 
         list_response = self.client.get(
-            f"/api/projects/{project['id']}/endpoints?skip=0&limit=2",
+            f"/api/v1/projects/{project['id']}/endpoints?skip=0&limit=2",
             headers=self.auth_headers,
         )
         self.assertEqual(list_response.status_code, 200)
@@ -388,24 +388,100 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         self.assertEqual(len(endpoints), 2)
 
         list_response_page2 = self.client.get(
-            f"/api/projects/{project['id']}/endpoints?skip=2&limit=2",
+            f"/api/v1/projects/{project['id']}/endpoints?skip=2&limit=2",
             headers=self.auth_headers,
         )
         self.assertEqual(list_response_page2.status_code, 200)
         self.assertEqual(len(list_response_page2.json()), 1)
 
     def test_standardized_error_format(self):
-        response = self.client.get("/api/projects/99999", headers=self.auth_headers)
+        response = self.client.get("/api/v1/projects/99999", headers=self.auth_headers)
         self.assertEqual(response.status_code, 404)
         body = response.json()
         self.assertIn("error", body)
         self.assertIn("code", body["error"])
         self.assertIn("message", body["error"])
+        self.assertIn("trace_id", body["error"])
         self.assertEqual(body["error"]["code"], 404)
+        # trace_id in the body matches the X-Request-ID response header.
+        self.assertEqual(body["error"]["trace_id"], response.headers["X-Request-ID"])
 
     def test_rate_limit_headers_present(self):
         response = self.client.get("/health")
         self.assertEqual(response.status_code, 200)
+
+    def test_trace_and_timing_headers_present(self):
+        response = self.client.get("/health")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("X-Request-ID", response.headers)
+        self.assertTrue(response.headers["X-Response-Time"].endswith("ms"))
+
+    def test_inbound_request_id_is_echoed(self):
+        response = self.client.get("/health", headers={"X-Request-ID": "trace-abc-123"})
+        self.assertEqual(response.headers["X-Request-ID"], "trace-abc-123")
+
+    def test_security_headers_present(self):
+        response = self.client.get("/health")
+        self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(response.headers["X-Frame-Options"], "DENY")
+
+    def test_idempotency_key_replays_creation(self):
+        project = self.create_project("Idempotent API")
+        payload = {
+            "method": "GET",
+            "path": "/widgets",
+            "group_name": "Widgets",
+            "summary": "List widgets",
+            "operation_id": "listWidgets",
+            "tag": "widgets",
+            "description": "List widgets",
+        }
+        headers = {**self.auth_headers, "Idempotency-Key": "create-widgets-once"}
+
+        first = self.client.post(
+            f"/api/v1/projects/{project['id']}/endpoints", json=payload, headers=headers
+        )
+        self.assertEqual(first.status_code, 201)
+
+        second = self.client.post(
+            f"/api/v1/projects/{project['id']}/endpoints", json=payload, headers=headers
+        )
+        self.assertEqual(second.status_code, 201)
+        self.assertEqual(second.headers.get("Idempotency-Replayed"), "true")
+        self.assertEqual(second.json()["id"], first.json()["id"])
+
+        # Only one endpoint was actually created despite two POSTs.
+        listed = self.client.get(
+            f"/api/v1/projects/{project['id']}/endpoints", headers=self.auth_headers
+        )
+        self.assertEqual(len(listed.json()), 1)
+
+    def test_idempotency_key_conflict_on_different_route(self):
+        project = self.create_project("Conflict API")
+        headers = {**self.auth_headers, "Idempotency-Key": "shared-key"}
+
+        first = self.client.post(
+            f"/api/v1/projects/{project['id']}/schemas",
+            json={"name": "Alpha"},
+            headers=headers,
+        )
+        self.assertEqual(first.status_code, 201)
+
+        # Reusing the same key on a different route is a 409.
+        conflict = self.client.post(
+            f"/api/v1/projects/{project['id']}/endpoints",
+            json={
+                "method": "GET",
+                "path": "/x",
+                "group_name": "X",
+                "summary": "x",
+                "operation_id": "x",
+                "tag": "x",
+                "description": "x",
+            },
+            headers=headers,
+        )
+        self.assertEqual(conflict.status_code, 409)
 
 
 if __name__ == "__main__":

@@ -148,6 +148,8 @@ Most important variables:
 | `JWT_SECRET`, `JWT_EXPIRES_MINUTES` | HS256 signing secret and token lifetime for backend and mock-server JWT validation |
 | `CORS_ORIGINS` | Allowed frontend origins for FastAPI — must be a valid JSON array string, e.g. `["http://localhost:5173"]` |
 | `ENABLE_API_DOCS` | Set to `true` only when you intentionally want FastAPI `/docs` and `/openapi.json` exposed |
+| `GZIP_MIN_SIZE_BYTES` | Minimum response size (bytes) before GZip compression kicks in (default `500`) |
+| `HSTS_MAX_AGE_SECONDS` | `Strict-Transport-Security` max-age, emitted only over HTTPS (default `31536000`) |
 | `BACKEND_URL` | Backend URL used by the mock server |
 | `VITE_API_URL` | Frontend-to-backend API base URL |
 | `VITE_MOCK_URL` | Frontend-to-mock API base URL |
@@ -272,6 +274,22 @@ If you run services manually, make sure `DATABASE_URL`, `VITE_API_URL`, and
 
 ## Backend API Overview
 
+Data routes are versioned under the `/api/v1` prefix. Auth, session, and health
+checks are cross-cutting and stay unversioned. Every response carries:
+
+- **`X-Request-ID`** — a trace ID generated per request (or echoed from an inbound
+  `X-Request-ID` header). The same value appears in structured logs and in the
+  `trace_id` field of error bodies (`{"error": {"code", "message", "trace_id"}}`).
+- **`X-Response-Time`** — server-side handling time, e.g. `12.4ms`.
+- **Security headers** — `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+  and `Strict-Transport-Security` (HTTPS only).
+- **GZip compression** for responses above `GZIP_MIN_SIZE_BYTES`.
+
+`POST` requests may include an **`Idempotency-Key`** header. The first response for
+a key is cached and replayed on retries (with `Idempotency-Replayed: true`), so a
+retried creation never produces a duplicate. Reusing a key on a different route
+returns `409 Conflict`.
+
 ### Health
 
 - `GET /health`
@@ -283,44 +301,44 @@ If you run services manually, make sure `DATABASE_URL`, `VITE_API_URL`, and
 
 ### Projects
 
-- `GET /api/projects`
-- `POST /api/projects`
-- `GET /api/projects/{project_id}`
-- `PUT /api/projects/{project_id}`
-- `DELETE /api/projects/{project_id}`
+- `GET /api/v1/projects`
+- `POST /api/v1/projects`
+- `GET /api/v1/projects/{project_id}`
+- `PUT /api/v1/projects/{project_id}`
+- `DELETE /api/v1/projects/{project_id}`
 
 ### Endpoints
 
-- `GET /api/projects/{project_id}/endpoints`
-- `POST /api/projects/{project_id}/endpoints`
-- `GET /api/endpoints/{endpoint_id}`
-- `PUT /api/endpoints/{endpoint_id}`
-- `DELETE /api/endpoints/{endpoint_id}`
+- `GET /api/v1/projects/{project_id}/endpoints`
+- `POST /api/v1/projects/{project_id}/endpoints`
+- `GET /api/v1/endpoints/{endpoint_id}`
+- `PUT /api/v1/endpoints/{endpoint_id}`
+- `DELETE /api/v1/endpoints/{endpoint_id}`
 
 ### Parameters
 
-- `POST /api/endpoints/{endpoint_id}/parameters`
-- `PUT /api/parameters/{param_id}`
-- `DELETE /api/parameters/{param_id}`
+- `POST /api/v1/endpoints/{endpoint_id}/parameters`
+- `PUT /api/v1/parameters/{param_id}`
+- `DELETE /api/v1/parameters/{param_id}`
 
 ### Responses
 
-- `POST /api/endpoints/{endpoint_id}/responses`
-- `PUT /api/responses/{response_id}`
-- `DELETE /api/responses/{response_id}`
+- `POST /api/v1/endpoints/{endpoint_id}/responses`
+- `PUT /api/v1/responses/{response_id}`
+- `DELETE /api/v1/responses/{response_id}`
 
 ### Schemas
 
-- `GET /api/projects/{project_id}/schemas`
-- `POST /api/projects/{project_id}/schemas`
-- `DELETE /api/schemas/{schema_id}`
-- `POST /api/schemas/{schema_id}/fields`
-- `DELETE /api/fields/{field_id}`
+- `GET /api/v1/projects/{project_id}/schemas`
+- `POST /api/v1/projects/{project_id}/schemas`
+- `DELETE /api/v1/schemas/{schema_id}`
+- `POST /api/v1/schemas/{schema_id}/fields`
+- `DELETE /api/v1/fields/{field_id}`
 
 ### Specs
 
-- `GET /api/projects/{project_id}/spec`
-- `GET /api/projects/{project_id}/spec.json`
+- `GET /api/v1/projects/{project_id}/spec`
+- `GET /api/v1/projects/{project_id}/spec.json`
 
 ### Mock server utilities
 

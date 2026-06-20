@@ -5,7 +5,7 @@ from ..core.database import get_db
 from ..models.models import Endpoint, Project
 from ..models.schemas import ProjectCreate, ProjectOut, ProjectSummary, ProjectUpdate
 
-router = APIRouter(prefix="/api/projects", tags=["Projects"])
+router = APIRouter(prefix="/projects", tags=["Projects"])
 
 
 @router.post("", response_model=ProjectOut, status_code=201)

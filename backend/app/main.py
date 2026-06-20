@@ -1,27 +1,46 @@
+import hashlib
+import signal
+import time
+import uuid
 from contextlib import asynccontextmanager
 
+import structlog
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from sqlalchemy import text
 
-from .core.config import settings
+from .core import idempotency
+from .core.config import API_V1_PREFIX, settings
+from .core.database import SessionLocal
 from .core.logging import get_logger, setup_logging
 from .core.security import authenticate_admin, create_access_token, require_admin
 from .models.schemas import LoginRequest, TokenOut
 from .routes import endpoints, projects, schemas, spec
 
+_shutdown_logger = None
+
+
+def _handle_sigterm(signum, frame):
+    if _shutdown_logger:
+        _shutdown_logger.info("sigterm_received", action="draining_requests")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _shutdown_logger
     setup_logging(settings.LOG_LEVEL)
     logger = get_logger("startup")
+    _shutdown_logger = get_logger("shutdown")
+    signal.signal(signal.SIGTERM, _handle_sigterm)
     logger.info("api_blueprint_starting", version="1.0.0")
     yield
-    logger.info("api_blueprint_shutting_down")
+    _shutdown_logger.info("api_blueprint_shutting_down")
 
 
 limiter = Limiter(
@@ -46,6 +65,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 _app_logger = get_logger("api")
 
 
+def _trace_id(request: Request) -> str | None:
+    return getattr(request.state, "trace_id", None)
+
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     _app_logger.warning(
@@ -58,7 +81,11 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     return JSONResponse(
         status_code=exc.status_code,
         content={
-            "error": {"code": exc.status_code, "message": exc.detail},
+            "error": {
+                "code": exc.status_code,
+                "message": exc.detail,
+                "trace_id": _trace_id(request),
+            },
         },
         headers=getattr(exc, "headers", None),
     )
@@ -79,22 +106,76 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
             "error": {
                 "code": 500,
                 "message": "An unexpected error occurred. Please try again later.",
+                "trace_id": _trace_id(request),
             },
         },
     )
 
 
 @app.middleware("http")
-async def request_logging_middleware(request: Request, call_next):
-    _app_logger.info("request_started", method=request.method, path=request.url.path)
+async def security_headers_middleware(request: Request, call_next):
     response = await call_next(request)
-    _app_logger.info(
-        "request_finished",
-        method=request.method,
-        path=request.url.path,
-        status_code=response.status_code,
-    )
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    # HSTS is only meaningful over HTTPS; emit it when the edge terminated TLS.
+    forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    if forwarded_proto == "https":
+        response.headers.setdefault(
+            "Strict-Transport-Security",
+            f"max-age={settings.HSTS_MAX_AGE_SECONDS}; includeSubDomains",
+        )
     return response
+
+
+@app.middleware("http")
+async def idempotency_middleware(request: Request, call_next):
+    """Replay the first response for any POST carrying an ``Idempotency-Key``.
+
+    A client that retries a creation after a dropped connection gets the
+    original resource back instead of creating a duplicate.
+    """
+    key = request.headers.get("Idempotency-Key")
+    if request.method != "POST" or not key:
+        return await call_next(request)
+
+    fingerprint = hashlib.sha256(f"{request.method}:{request.url.path}".encode()).hexdigest()
+    stored = idempotency.store.get(key)
+    if stored is not None:
+        if stored.request_fingerprint != fingerprint:
+            return JSONResponse(
+                status_code=status.HTTP_409_CONFLICT,
+                content={
+                    "error": {
+                        "code": 409,
+                        "message": "Idempotency-Key was already used for a different request",
+                        "trace_id": _trace_id(request),
+                    },
+                },
+            )
+        return Response(
+            content=stored.body,
+            status_code=stored.status_code,
+            media_type=stored.media_type,
+            headers={"Idempotency-Replayed": "true"},
+        )
+
+    response = await call_next(request)
+    body = b"".join([chunk async for chunk in response.body_iterator])
+    # Only cache successful creations — failures should be retryable.
+    if 200 <= response.status_code < 300:
+        idempotency.store.put(
+            key,
+            response.status_code,
+            body,
+            response.media_type or "application/json",
+            fingerprint,
+        )
+    return Response(
+        content=body,
+        status_code=response.status_code,
+        headers=dict(response.headers),
+        media_type=response.media_type,
+    )
 
 
 @app.middleware("http")
@@ -108,18 +189,48 @@ async def request_size_limit_middleware(request: Request, call_next):
                 "error": {
                     "code": 413,
                     "message": f"Request body exceeds {settings.MAX_REQUEST_BODY_SIZE_MB}MB limit",
+                    "trace_id": _trace_id(request),
                 },
             },
         )
     return await call_next(request)
 
 
+# Defined last so it is the outermost custom middleware: it stamps a trace_id and
+# timing onto every response, including the early returns above.
+@app.middleware("http")
+async def trace_context_middleware(request: Request, call_next):
+    trace_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
+    request.state.trace_id = trace_id
+    structlog.contextvars.bind_contextvars(trace_id=trace_id)
+    started = time.perf_counter()
+    try:
+        _app_logger.info("request_started", method=request.method, path=request.url.path)
+        response = await call_next(request)
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        response.headers["X-Request-ID"] = trace_id
+        response.headers["X-Response-Time"] = f"{elapsed_ms:.1f}ms"
+        _app_logger.info(
+            "request_finished",
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+            duration_ms=round(elapsed_ms, 1),
+        )
+        return response
+    finally:
+        structlog.contextvars.clear_contextvars()
+
+
+app.add_middleware(GZipMiddleware, minimum_size=settings.GZIP_MIN_SIZE_BYTES)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Request-ID"],
+    expose_headers=["X-Request-ID", "X-Response-Time", "Idempotency-Replayed"],
 )
 
 if settings.ALLOWED_HOSTS:
@@ -130,18 +241,37 @@ if settings.ALLOWED_HOSTS:
 
 secured = [Depends(require_admin)]
 
-app.include_router(projects.router, dependencies=secured)
-app.include_router(endpoints.router, dependencies=secured)
-app.include_router(spec.router, dependencies=secured)
-app.include_router(schemas.router, dependencies=secured)
+app.include_router(projects.router, prefix=API_V1_PREFIX, dependencies=secured)
+app.include_router(endpoints.router, prefix=API_V1_PREFIX, dependencies=secured)
+app.include_router(spec.router, prefix=API_V1_PREFIX, dependencies=secured)
+app.include_router(schemas.router, prefix=API_V1_PREFIX, dependencies=secured)
 
 
 @app.get("/health")
 def health():
-    return {
-        "status": "ok",
-        "service": "apiblueprint-backend",
-    }
+    return {"status": "ok", "service": "apiblueprint-backend"}
+
+
+@app.get("/health/live")
+def health_live():
+    """Liveness — confirms the process is running."""
+    return {"status": "ok"}
+
+
+@app.get("/health/ready")
+def health_ready():
+    """Readiness — confirms the process can serve traffic (DB reachable)."""
+    try:
+        db = SessionLocal()
+        db.execute(text("SELECT 1"))
+        db.close()
+    except Exception as exc:
+        _app_logger.error("readiness_check_failed", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database not reachable",
+        ) from exc
+    return {"status": "ok", "db": "reachable"}
 
 
 @app.post("/api/auth/login", response_model=TokenOut)

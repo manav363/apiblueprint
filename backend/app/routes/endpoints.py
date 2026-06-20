@@ -21,7 +21,7 @@ router = APIRouter(tags=["Endpoints"])
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
 
-@router.post("/api/projects/{project_id}/endpoints", response_model=EndpointOut, status_code=201)
+@router.post("/projects/{project_id}/endpoints", response_model=EndpointOut, status_code=201)
 def create_endpoint(project_id: int, payload: EndpointCreate, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
@@ -33,7 +33,7 @@ def create_endpoint(project_id: int, payload: EndpointCreate, db: Session = Depe
     return endpoint
 
 
-@router.get("/api/projects/{project_id}/endpoints", response_model=list[EndpointOut])
+@router.get("/projects/{project_id}/endpoints", response_model=list[EndpointOut])
 def list_endpoints(
     project_id: int,
     skip: int = Query(0, ge=0, description="Number of records to skip"),
@@ -43,7 +43,7 @@ def list_endpoints(
     return db.query(Endpoint).filter(Endpoint.project_id == project_id).offset(skip).limit(limit).all()
 
 
-@router.get("/api/endpoints/{endpoint_id}", response_model=EndpointOut)
+@router.get("/endpoints/{endpoint_id}", response_model=EndpointOut)
 def get_endpoint(endpoint_id: int, db: Session = Depends(get_db)):
     ep = db.query(Endpoint).filter(Endpoint.id == endpoint_id).first()
     if not ep:
@@ -51,7 +51,7 @@ def get_endpoint(endpoint_id: int, db: Session = Depends(get_db)):
     return ep
 
 
-@router.put("/api/endpoints/{endpoint_id}", response_model=EndpointOut)
+@router.put("/endpoints/{endpoint_id}", response_model=EndpointOut)
 def update_endpoint(endpoint_id: int, payload: EndpointUpdate, db: Session = Depends(get_db)):
     ep = db.query(Endpoint).filter(Endpoint.id == endpoint_id).first()
     if not ep:
@@ -63,7 +63,7 @@ def update_endpoint(endpoint_id: int, payload: EndpointUpdate, db: Session = Dep
     return ep
 
 
-@router.delete("/api/endpoints/{endpoint_id}", status_code=204)
+@router.delete("/endpoints/{endpoint_id}", status_code=204)
 def delete_endpoint(endpoint_id: int, db: Session = Depends(get_db)):
     ep = db.query(Endpoint).filter(Endpoint.id == endpoint_id).first()
     if not ep:
@@ -75,7 +75,7 @@ def delete_endpoint(endpoint_id: int, db: Session = Depends(get_db)):
 # ── Parameters ─────────────────────────────────────────────────────────────────
 
 
-@router.post("/api/endpoints/{endpoint_id}/parameters", response_model=ParameterOut, status_code=201)
+@router.post("/endpoints/{endpoint_id}/parameters", response_model=ParameterOut, status_code=201)
 def create_parameter(endpoint_id: int, payload: ParameterCreate, db: Session = Depends(get_db)):
     ep = db.query(Endpoint).filter(Endpoint.id == endpoint_id).first()
     if not ep:
@@ -87,7 +87,7 @@ def create_parameter(endpoint_id: int, payload: ParameterCreate, db: Session = D
     return param
 
 
-@router.put("/api/parameters/{param_id}", response_model=ParameterOut)
+@router.put("/parameters/{param_id}", response_model=ParameterOut)
 def update_parameter(param_id: int, payload: ParameterUpdate, db: Session = Depends(get_db)):
     param = db.query(Parameter).filter(Parameter.id == param_id).first()
     if not param:
@@ -99,7 +99,7 @@ def update_parameter(param_id: int, payload: ParameterUpdate, db: Session = Depe
     return param
 
 
-@router.delete("/api/parameters/{param_id}", status_code=204)
+@router.delete("/parameters/{param_id}", status_code=204)
 def delete_parameter(param_id: int, db: Session = Depends(get_db)):
     param = db.query(Parameter).filter(Parameter.id == param_id).first()
     if not param:
@@ -111,7 +111,7 @@ def delete_parameter(param_id: int, db: Session = Depends(get_db)):
 # ── Responses ──────────────────────────────────────────────────────────────────
 
 
-@router.post("/api/endpoints/{endpoint_id}/responses", response_model=ResponseOut, status_code=201)
+@router.post("/endpoints/{endpoint_id}/responses", response_model=ResponseOut, status_code=201)
 def create_response(endpoint_id: int, payload: ResponseCreate, db: Session = Depends(get_db)):
     ep = db.query(Endpoint).filter(Endpoint.id == endpoint_id).first()
     if not ep:
@@ -123,7 +123,7 @@ def create_response(endpoint_id: int, payload: ResponseCreate, db: Session = Dep
     return resp
 
 
-@router.put("/api/responses/{response_id}", response_model=ResponseOut)
+@router.put("/responses/{response_id}", response_model=ResponseOut)
 def update_response(response_id: int, payload: ResponseUpdate, db: Session = Depends(get_db)):
     resp = db.query(Response).filter(Response.id == response_id).first()
     if not resp:
@@ -135,7 +135,7 @@ def update_response(response_id: int, payload: ResponseUpdate, db: Session = Dep
     return resp
 
 
-@router.delete("/api/responses/{response_id}", status_code=204)
+@router.delete("/responses/{response_id}", status_code=204)
 def delete_response(response_id: int, db: Session = Depends(get_db)):
     resp = db.query(Response).filter(Response.id == response_id).first()
     if not resp:

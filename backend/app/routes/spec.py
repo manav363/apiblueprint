@@ -162,7 +162,7 @@ def generate_spec(project) -> dict:
     return spec
 
 
-@router.get("/api/projects/{project_id}/spec")
+@router.get("/projects/{project_id}/spec")
 def get_spec_yaml(project_id: int, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
@@ -172,7 +172,7 @@ def get_spec_yaml(project_id: int, db: Session = Depends(get_db)):
     return Response(content=yaml_str, media_type="text/yaml")
 
 
-@router.get("/api/projects/{project_id}/spec.json")
+@router.get("/projects/{project_id}/spec.json")
 def get_spec_json(project_id: int, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:

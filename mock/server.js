@@ -180,7 +180,7 @@ function findOperation(spec, method, requestPath) {
 
 async function loadProjectSpec(projectId) {
   try {
-    const res = await axios.get(`${BACKEND_URL}/api/projects/${projectId}/spec.json`, {
+    const res = await axios.get(`${BACKEND_URL}/api/v1/projects/${projectId}/spec.json`, {
       headers: { Authorization: buildBackendAuthHeader() },
     });
     const spec = res.data;

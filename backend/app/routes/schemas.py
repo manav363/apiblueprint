@@ -8,7 +8,7 @@ from ..models.schemas import SchemaCreate, SchemaFieldCreate, SchemaFieldOut, Sc
 router = APIRouter(tags=["Schemas"])
 
 
-@router.post("/api/projects/{project_id}/schemas", response_model=SchemaOut, status_code=201)
+@router.post("/projects/{project_id}/schemas", response_model=SchemaOut, status_code=201)
 def create_schema(project_id: int, payload: SchemaCreate, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
@@ -20,7 +20,7 @@ def create_schema(project_id: int, payload: SchemaCreate, db: Session = Depends(
     return schema
 
 
-@router.get("/api/projects/{project_id}/schemas", response_model=list[SchemaOut])
+@router.get("/projects/{project_id}/schemas", response_model=list[SchemaOut])
 def list_schemas(
     project_id: int,
     skip: int = Query(0, ge=0, description="Number of records to skip"),
@@ -30,7 +30,7 @@ def list_schemas(
     return db.query(Schema).filter(Schema.project_id == project_id).offset(skip).limit(limit).all()
 
 
-@router.delete("/api/schemas/{schema_id}", status_code=204)
+@router.delete("/schemas/{schema_id}", status_code=204)
 def delete_schema(schema_id: int, db: Session = Depends(get_db)):
     schema = db.query(Schema).filter(Schema.id == schema_id).first()
     if not schema:
@@ -39,7 +39,7 @@ def delete_schema(schema_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
-@router.post("/api/schemas/{schema_id}/fields", response_model=SchemaFieldOut, status_code=201)
+@router.post("/schemas/{schema_id}/fields", response_model=SchemaFieldOut, status_code=201)
 def create_field(schema_id: int, payload: SchemaFieldCreate, db: Session = Depends(get_db)):
     schema = db.query(Schema).filter(Schema.id == schema_id).first()
     if not schema:
@@ -51,7 +51,7 @@ def create_field(schema_id: int, payload: SchemaFieldCreate, db: Session = Depen
     return field
 
 
-@router.delete("/api/fields/{field_id}", status_code=204)
+@router.delete("/fields/{field_id}", status_code=204)
 def delete_field(field_id: int, db: Session = Depends(get_db)):
     field = db.query(SchemaField).filter(SchemaField.id == field_id).first()
     if not field:
