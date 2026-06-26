@@ -1,0 +1,25 @@
+name: Deploy
+
+# Runs on a published release (or manual dispatch). The CDN purge step is the
+# only piece wired here for now; actual server/image deployment is environment
+# specific and documented in DEPLOYMENT.md. The purge step no-ops safely until
+# the CDN_* secrets are configured, so this workflow is green out of the box.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  purge-cdn:
+    name: Purge CDN cache
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Purge edge cache for revalidatable spec URLs
+        env:
+          CDN_PROVIDER: ${{ vars.CDN_PROVIDER }}
+          CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          PURGE_PREFIXES: ${{ vars.PURGE_PREFIXES }}
+        run: bash scripts/cdn-purge.sh

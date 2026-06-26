@@ -3,12 +3,29 @@ from sqlalchemy.orm import Session
 
 from ..core.database import get_db
 from ..models.models import Project, Schema, SchemaField
-from ..models.schemas import SchemaCreate, SchemaFieldCreate, SchemaFieldOut, SchemaOut
+from ..models.schemas import (
+    ErrorEnvelope,
+    SchemaCreate,
+    SchemaFieldCreate,
+    SchemaFieldOut,
+    SchemaOut,
+)
 
 router = APIRouter(tags=["Schemas"])
 
 
-@router.post("/projects/{project_id}/schemas", response_model=SchemaOut, status_code=201)
+def _not_found(resource: str) -> dict:
+    return {404: {"model": ErrorEnvelope, "description": f"{resource} not found"}}
+
+
+@router.post(
+    "/projects/{project_id}/schemas",
+    response_model=SchemaOut,
+    status_code=201,
+    summary="Create a schema",
+    description="Add a reusable component schema to a project.",
+    responses=_not_found("Project"),
+)
 def create_schema(project_id: int, payload: SchemaCreate, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
@@ -20,7 +37,11 @@ def create_schema(project_id: int, payload: SchemaCreate, db: Session = Depends(
     return schema
 
 
-@router.get("/projects/{project_id}/schemas", response_model=list[SchemaOut])
+@router.get(
+    "/projects/{project_id}/schemas",
+    response_model=list[SchemaOut],
+    summary="List a project's schemas",
+)
 def list_schemas(
     project_id: int,
     skip: int = Query(0, ge=0, description="Number of records to skip"),
@@ -30,7 +51,12 @@ def list_schemas(
     return db.query(Schema).filter(Schema.project_id == project_id).offset(skip).limit(limit).all()
 
 
-@router.delete("/schemas/{schema_id}", status_code=204)
+@router.delete(
+    "/schemas/{schema_id}",
+    status_code=204,
+    summary="Delete a schema",
+    responses=_not_found("Schema"),
+)
 def delete_schema(schema_id: int, db: Session = Depends(get_db)):
     schema = db.query(Schema).filter(Schema.id == schema_id).first()
     if not schema:
@@ -39,7 +65,14 @@ def delete_schema(schema_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
-@router.post("/schemas/{schema_id}/fields", response_model=SchemaFieldOut, status_code=201)
+@router.post(
+    "/schemas/{schema_id}/fields",
+    response_model=SchemaFieldOut,
+    status_code=201,
+    summary="Add a field to a schema",
+    description="Add a field (optionally nested via parent_id) to a schema.",
+    responses=_not_found("Schema"),
+)
 def create_field(schema_id: int, payload: SchemaFieldCreate, db: Session = Depends(get_db)):
     schema = db.query(Schema).filter(Schema.id == schema_id).first()
     if not schema:
@@ -51,7 +84,12 @@ def create_field(schema_id: int, payload: SchemaFieldCreate, db: Session = Depen
     return field
 
 
-@router.delete("/fields/{field_id}", status_code=204)
+@router.delete(
+    "/fields/{field_id}",
+    status_code=204,
+    summary="Delete a schema field",
+    responses=_not_found("Field"),
+)
 def delete_field(field_id: int, db: Session = Depends(get_db)):
     field = db.query(SchemaField).filter(SchemaField.id == field_id).first()
     if not field:

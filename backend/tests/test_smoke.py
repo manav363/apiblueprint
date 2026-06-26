@@ -425,6 +425,14 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
         self.assertEqual(response.headers["X-Frame-Options"], "DENY")
 
+    def test_metrics_endpoint_exposed(self):
+        # Generate one request so a sample exists, then scrape Prometheus metrics.
+        self.client.get("/health")
+        response = self.client.get("/metrics")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/plain", response.headers["content-type"])
+        self.assertIn("http_request", response.text)
+
     def test_idempotency_key_replays_creation(self):
         project = self.create_project("Idempotent API")
         payload = {
@@ -438,22 +446,16 @@ class ApiBlueprintSmokeTests(unittest.TestCase):
         }
         headers = {**self.auth_headers, "Idempotency-Key": "create-widgets-once"}
 
-        first = self.client.post(
-            f"/api/v1/projects/{project['id']}/endpoints", json=payload, headers=headers
-        )
+        first = self.client.post(f"/api/v1/projects/{project['id']}/endpoints", json=payload, headers=headers)
         self.assertEqual(first.status_code, 201)
 
-        second = self.client.post(
-            f"/api/v1/projects/{project['id']}/endpoints", json=payload, headers=headers
-        )
+        second = self.client.post(f"/api/v1/projects/{project['id']}/endpoints", json=payload, headers=headers)
         self.assertEqual(second.status_code, 201)
         self.assertEqual(second.headers.get("Idempotency-Replayed"), "true")
         self.assertEqual(second.json()["id"], first.json()["id"])
 
         # Only one endpoint was actually created despite two POSTs.
-        listed = self.client.get(
-            f"/api/v1/projects/{project['id']}/endpoints", headers=self.auth_headers
-        )
+        listed = self.client.get(f"/api/v1/projects/{project['id']}/endpoints", headers=self.auth_headers)
         self.assertEqual(len(listed.json()), 1)
 
     def test_idempotency_key_conflict_on_different_route(self):

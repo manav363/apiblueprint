@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse, Response
+from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -19,9 +20,10 @@ from .core import idempotency
 from .core.config import API_V1_PREFIX, settings
 from .core.database import SessionLocal
 from .core.logging import get_logger, setup_logging
+from .core.observability import init_sentry
 from .core.security import authenticate_admin, create_access_token, require_admin
 from .models.schemas import LoginRequest, TokenOut
-from .routes import endpoints, projects, schemas, spec
+from .routes import endpoints, projects, schemas, spec, validate
 
 _shutdown_logger = None
 
@@ -37,16 +39,27 @@ async def lifespan(app: FastAPI):
     setup_logging(settings.LOG_LEVEL)
     logger = get_logger("startup")
     _shutdown_logger = get_logger("shutdown")
-    signal.signal(signal.SIGTERM, _handle_sigterm)
+    # Signal handlers can only be installed on the main thread; under test portals
+    # or some embedded servers the lifespan runs elsewhere, so degrade gracefully.
+    try:
+        signal.signal(signal.SIGTERM, _handle_sigterm)
+    except ValueError:
+        logger.warning("sigterm_handler_not_registered", reason="not_main_thread")
     logger.info("api_blueprint_starting", version="1.0.0")
     yield
     _shutdown_logger.info("api_blueprint_shutting_down")
 
 
+# Initialize Sentry before the app is created so its integration can wrap it.
+init_sentry()
+
+# Use Redis as the rate-limit store when configured so limits hold across
+# multiple backend processes/replicas; otherwise fall back to in-process memory.
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=[f"{settings.RATE_LIMIT_PER_MINUTE}/minute"],
     enabled=settings.RATE_LIMIT_ENABLED,
+    storage_uri=settings.REDIS_URL or "memory://",
 )
 
 app = FastAPI(
@@ -246,19 +259,33 @@ app.include_router(endpoints.router, prefix=API_V1_PREFIX, dependencies=secured)
 app.include_router(spec.router, prefix=API_V1_PREFIX, dependencies=secured)
 app.include_router(schemas.router, prefix=API_V1_PREFIX, dependencies=secured)
 
+# Stateless spec linter — unauthenticated, but still subject to the global rate
+# limiter and request-body-size cap.
+app.include_router(validate.router)
 
-@app.get("/health")
+# Prometheus metrics: request counts, latencies, and sizes at /metrics (unauthenticated,
+# meant to be scraped from inside the network — keep the port bound to localhost).
+if settings.METRICS_ENABLED:
+    Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=settings.ENABLE_API_DOCS)
+
+
+@app.get("/health", tags=["Health"], summary="Basic health check")
 def health():
     return {"status": "ok", "service": "apiblueprint-backend"}
 
 
-@app.get("/health/live")
+@app.get("/health/live", tags=["Health"], summary="Liveness probe")
 def health_live():
     """Liveness — confirms the process is running."""
     return {"status": "ok"}
 
 
-@app.get("/health/ready")
+@app.get(
+    "/health/ready",
+    tags=["Health"],
+    summary="Readiness probe",
+    responses={503: {"description": "Database not reachable"}},
+)
 def health_ready():
     """Readiness — confirms the process can serve traffic (DB reachable)."""
     try:
@@ -274,7 +301,13 @@ def health_ready():
     return {"status": "ok", "db": "reachable"}
 
 
-@app.post("/api/auth/login", response_model=TokenOut)
+@app.post(
+    "/api/auth/login",
+    response_model=TokenOut,
+    tags=["Auth"],
+    summary="Log in and obtain a JWT",
+    responses={401: {"description": "Invalid username or password"}},
+)
 @limiter.limit("10/minute")
 def login(request: Request, payload: LoginRequest):
     if not authenticate_admin(payload.username, payload.password):
@@ -286,6 +319,6 @@ def login(request: Request, payload: LoginRequest):
     return create_access_token(payload.username)
 
 
-@app.get("/api/session")
+@app.get("/api/session", tags=["Auth"], summary="Get the current session")
 def get_session(username: str = Depends(require_admin)):
     return {"authenticated": True, "username": username}

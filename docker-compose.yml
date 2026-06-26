@@ -19,6 +19,20 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Redis (rate-limit store + spec cache) ─────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: apiblueprint_redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   # ── FastAPI Backend ───────────────────────────────────────────────────────────
   backend:
     build:
@@ -38,10 +52,18 @@ services:
       RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
       RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
       MAX_REQUEST_BODY_SIZE_MB: ${MAX_REQUEST_BODY_SIZE_MB:-5}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      METRICS_ENABLED: ${METRICS_ENABLED:-true}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.0}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      SPEC_CACHE_TTL_SECONDS: ${SPEC_CACHE_TTL_SECONDS:-300}
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - ./backend:/app
@@ -75,6 +97,9 @@ services:
     environment:
       VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
       VITE_MOCK_URL: ${VITE_MOCK_URL:-http://localhost:4010}
+      VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
+      VITE_SENTRY_ENVIRONMENT: ${ENVIRONMENT:-development}
+      VITE_SENTRY_TRACES_SAMPLE_RATE: ${VITE_SENTRY_TRACES_SAMPLE_RATE:-0.0}
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-5173}:5173"
     depends_on:

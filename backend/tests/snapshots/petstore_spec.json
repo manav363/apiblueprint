@@ -1,0 +1,70 @@
+{
+  "components": {
+    "schemas": {
+      "Pet": {
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "bearerFormat": "JWT",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "A fixed project for snapshot testing",
+    "title": "Petstore",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.3",
+  "paths": {
+    "/pets/{petId}": {
+      "get": {
+        "description": "Return a single pet by id",
+        "operationId": "getPet",
+        "parameters": [
+          {
+            "description": "ID of the pet",
+            "in": "path",
+            "name": "petId",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": 1,
+                  "name": "Rex"
+                }
+              }
+            },
+            "description": "The pet"
+          }
+        },
+        "summary": "Get a pet",
+        "tags": [
+          "pets"
+        ]
+      }
+    }
+  }
+}

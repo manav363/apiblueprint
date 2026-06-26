@@ -137,6 +137,44 @@ sudo ufw enable
 
 ---
 
+## 8. CDN / Edge Caching (optional)
+
+Generated OpenAPI specs are cache-friendly:
+
+- **`GET /api/v1/projects/{id}/spec.json`** (and `/spec`) return an `ETag` (the
+  spec's content hash) and `Cache-Control: public, max-age=60`. A CDN or browser
+  revalidates with `If-None-Match` and gets a cheap `304 Not Modified` when
+  nothing changed. The response also carries a `Content-Location` header pointing
+  at the immutable copy below.
+- **`GET /api/v1/projects/{id}/spec/{hash}.json`** is content-addressed and
+  immutable: `Cache-Control: public, max-age=31536000, immutable`. Because the
+  URL changes whenever the spec changes, the edge can cache it for a year with no
+  invalidation. A stale hash returns `404`.
+
+### Putting a CDN in front
+
+Point the CDN at the backend origin and let it honor the `Cache-Control`/`ETag`
+headers above — no special rules needed. The immutable hashed URLs never need
+purging; only the short-lived `/spec.json` and `/spec` endpoints do, and their
+60s max-age means they self-heal quickly.
+
+### Purge on deploy
+
+`scripts/cdn-purge.sh` purges the revalidatable URLs (Cloudflare example,
+provider-agnostic via env vars). It is wired into `.github/workflows/deploy.yml`,
+which runs on a published release. It **no-ops safely** until you configure:
+
+- Repo variable `CDN_PROVIDER` (e.g. `cloudflare`) and optional `PURGE_PREFIXES`
+- Repo secrets `CF_ZONE_ID`, `CF_API_TOKEN`
+
+Run it manually too:
+
+```bash
+CDN_PROVIDER=cloudflare CF_ZONE_ID=... CF_API_TOKEN=... bash scripts/cdn-purge.sh
+```
+
+---
+
 ## Day-to-Day Operations
 
 ### View logs

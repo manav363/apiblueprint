@@ -34,6 +34,20 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/__init__.py", "alembic/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true

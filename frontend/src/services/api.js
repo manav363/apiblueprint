@@ -34,6 +34,10 @@ export function hasStoredAuth() {
   return Boolean(readStoredToken());
 }
 
+export function getStoredToken() {
+  return readStoredToken();
+}
+
 export function getStoredUsername() {
   if (typeof window === "undefined") return "";
   return window.sessionStorage.getItem(AUTH_USER_STORAGE_KEY) || "";
@@ -128,11 +132,13 @@ export const api = {
   updateEndpoint: (id, data) => req("PUT", `${V1}/endpoints/${id}`, data),
   deleteEndpoint: (id) => req("DELETE", `${V1}/endpoints/${id}`),
 
-  createParameter: (endpointId, data) => req("POST", `${V1}/endpoints/${endpointId}/parameters`, data),
+  createParameter: (endpointId, data) =>
+    req("POST", `${V1}/endpoints/${endpointId}/parameters`, data),
   updateParameter: (id, data) => req("PUT", `${V1}/parameters/${id}`, data),
   deleteParameter: (id) => req("DELETE", `${V1}/parameters/${id}`),
 
-  createResponse: (endpointId, data) => req("POST", `${V1}/endpoints/${endpointId}/responses`, data),
+  createResponse: (endpointId, data) =>
+    req("POST", `${V1}/endpoints/${endpointId}/responses`, data),
   updateResponse: (id, data) => req("PUT", `${V1}/responses/${id}`, data),
   deleteResponse: (id) => req("DELETE", `${V1}/responses/${id}`),
 
@@ -154,11 +160,25 @@ export const api = {
   },
   getSpecJson: (projectId) => req("GET", `${V1}/projects/${projectId}/spec.json`),
 
+  validateSpec: async (specText) => {
+    const res = await fetch(`${BASE}/api/validate`, {
+      method: "POST",
+      headers: { "Content-Type": "text/yaml" },
+      body: specText,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error?.message || err.detail || `HTTP ${res.status}`);
+    }
+    return res.json();
+  },
+
   getMockLogs: () => mockReq("/mock-logs"),
   getMockStats: () => mockReq("/mock-stats"),
   testMockEndpoint,
-  reloadMock: (projectId) => mockReq(`/mock/reload/${projectId}`, {
-    method: "POST",
-    headers: authHeaders(),
-  }),
+  reloadMock: (projectId) =>
+    mockReq(`/mock/reload/${projectId}`, {
+      method: "POST",
+      headers: authHeaders(),
+    }),
 };

@@ -16,6 +16,14 @@ class Settings(BaseSettings):
     ALLOWED_HOSTS: str | None = None
     GZIP_MIN_SIZE_BYTES: int = 500
     HSTS_MAX_AGE_SECONDS: int = 31536000  # 1 year; only emitted over HTTPS
+    ENVIRONMENT: str = "development"
+    METRICS_ENABLED: bool = True
+    SENTRY_DSN: str | None = None
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.0
+    # Caching / Redis. When REDIS_URL is unset, rate limiting and the spec cache
+    # fall back to in-process stores, so the app runs without Redis.
+    REDIS_URL: str | None = None
+    SPEC_CACHE_TTL_SECONDS: int = 300
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

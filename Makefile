@@ -1,5 +1,5 @@
 .PHONY: setup dev down ps logs test test-backend test-frontend \
-        lint lint-backend lint-frontend migrate seed clean
+        lint lint-backend lint-frontend migrate seed clean smoke
 
 # ── Bootstrap ──────────────────────────────────────────────────────────────────
 setup:
@@ -35,6 +35,11 @@ test-backend:
 test-frontend:
 	@echo "→ Running frontend tests..."
 	cd frontend && npm run test
+
+# ── Cold-clone smoke test ──────────────────────────────────────────────────────
+smoke:
+	@echo "→ Building the full stack from scratch and verifying health..."
+	bash scripts/smoke-test.sh
 
 # ── Linting ────────────────────────────────────────────────────────────────────
 lint: lint-backend lint-frontend

@@ -9,6 +9,28 @@ class LoginRequest(BaseModel):
     password: str
 
 
+# ── Error envelope ─────────────────────────────────────────
+class ErrorDetail(BaseModel):
+    code: int
+    message: str
+    trace_id: str | None = None
+
+
+class ErrorEnvelope(BaseModel):
+    error: ErrorDetail
+
+
+# ── Spec validation ────────────────────────────────────────
+class ValidationIssue(BaseModel):
+    path: str
+    message: str
+
+
+class ValidationResult(BaseModel):
+    valid: bool
+    errors: list[ValidationIssue] = []
+
+
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"

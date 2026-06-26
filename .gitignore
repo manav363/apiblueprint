@@ -20,6 +20,23 @@ htmlcov/
 # Node
 node_modules/
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+
+# Vite / frontend build caches
+.vite/
+*.tsbuildinfo
+node_modules/.cache/
+
+# Logs
+*.log
+logs/
+
+# Lighthouse / perf reports
+.lighthouseci/
+lighthouse-report.*
 
 # Docker and local data
 postgres_data/
@@ -30,5 +47,24 @@ dist-ssr/
 build/
 frontend/dist/
 
+# Test / coverage artifacts
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+playwright/.cache/
+*.local
+
+# Local agent config (machine-specific permission allowlist — never commit)
+.claude/settings.local.json
+
 # OS/editor noise
 .DS_Store
+Thumbs.db
+*.sw?
+.idea/
+
+# VS Code — ignore local settings, keep shared config if added intentionally
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json

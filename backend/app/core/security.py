@@ -29,9 +29,19 @@ def create_access_token(username: str) -> dict:
     }
 
 
+def _constant_time_equals(a: str, b: str) -> bool:
+    """Constant-time string comparison that tolerates non-ASCII input.
+
+    ``secrets.compare_digest`` raises ``TypeError`` for ``str`` values containing
+    non-ASCII characters, so compare the UTF-8 byte encodings instead — that turns
+    a hostile non-ASCII credential into a clean ``False`` rather than a 500.
+    """
+    return secrets.compare_digest(a.encode("utf-8"), b.encode("utf-8"))
+
+
 def authenticate_admin(username: str, password: str) -> bool:
-    valid_username = secrets.compare_digest(username, settings.ADMIN_USERNAME)
-    valid_password = secrets.compare_digest(password, settings.ADMIN_PASSWORD)
+    valid_username = _constant_time_equals(username, settings.ADMIN_USERNAME)
+    valid_password = _constant_time_equals(password, settings.ADMIN_PASSWORD)
     return valid_username and valid_password
 
 
@@ -57,7 +67,7 @@ def decode_access_token(token: str) -> dict:
         ) from exc
 
     username = payload.get("sub")
-    if not username or not secrets.compare_digest(str(username), settings.ADMIN_USERNAME):
+    if not username or not _constant_time_equals(str(username), settings.ADMIN_USERNAME):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token subject",

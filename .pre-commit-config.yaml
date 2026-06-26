@@ -32,3 +32,20 @@ repos:
         additional_dependencies:
           - pydantic>=2.7.1
           - sqlalchemy>=2.0.30
+
+  # Frontend ESLint + Prettier — run the project's own scripts when frontend
+  # sources change (uses repo-local dependencies, no remote package execution).
+  - repo: local
+    hooks:
+      - id: frontend-prettier
+        name: prettier (frontend)
+        entry: bash -c 'cd frontend && npx prettier --write "src/**/*.{js,jsx,css}"'
+        language: system
+        files: ^frontend/src/.*\.(js|jsx|css)$
+        pass_filenames: false
+      - id: frontend-eslint
+        name: eslint (frontend)
+        entry: bash -c 'cd frontend && npm run lint'
+        language: system
+        files: ^frontend/.*\.(js|jsx)$
+        pass_filenames: false

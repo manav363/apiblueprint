@@ -1,7 +1,9 @@
+const http = require("http");
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
+const { attachCollaboration } = require("./collab");
 
 const app = express();
 const BACKEND_URL = process.env.BACKEND_URL || "http://backend:8000";
@@ -288,10 +290,17 @@ app.all("/mock/:projectId/*", async (req, res) => {
 });
 
 if (require.main === module) {
-  app.listen(PORT, () => {
+  // Wrap Express in an explicit HTTP server so the collaboration WebSocket can
+  // share the same port via the HTTP upgrade handshake.
+  const server = http.createServer(app);
+  attachCollaboration(server, { verifyToken: verifyJwt });
+  server.listen(PORT, () => {
     console.log(`[Mock] APIBlueprint Mock Server running on port ${PORT}`);
+    console.log(`[Mock] Collaboration WebSocket on ws://localhost:${PORT}/collab`);
     console.log(`[Mock] Backend URL: ${BACKEND_URL}`);
   });
 }
 
 module.exports = app;
+module.exports.verifyJwt = verifyJwt;
+module.exports.attachCollaboration = attachCollaboration;

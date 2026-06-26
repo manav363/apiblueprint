@@ -22,12 +22,18 @@ APIBlueprint is a full-stack, contract-first API design studio. Model REST endpo
 
 ## System Architecture
 
+Two backend services: **FastAPI** (system of record — data, spec generation,
+validation, auth, observability) and an **Express mock server** (serves each
+project's designed API). See [docs/architecture.md](docs/architecture.md) and
+[ADR-001](docs/decisions/ADR-001-dual-backend.md) for the why.
+
 ```mermaid
 flowchart LR
     U["User / Browser"]
     F["Frontend<br/>React + Vite<br/>localhost:5173"]
     B["Backend API<br/>FastAPI + SQLAlchemy<br/>localhost:8000"]
     D["PostgreSQL<br/>db service<br/>localhost:5432"]
+    R["Redis<br/>rate limit + spec cache<br/>localhost:6379"]
     M["Mock Server<br/>Express<br/>localhost:4010"]
     S["Generated OpenAPI<br/>spec.json / spec.yaml"]
 
@@ -35,6 +41,7 @@ flowchart LR
     F -->|CRUD projects, endpoints, schemas| B
     B -->|persist data| D
     D -->|load project model| B
+    B -->|rate limit + cache| R
     B -->|generate spec| S
     M -->|fetch project spec| B
     M -->|serve mock routes| U
@@ -51,6 +58,14 @@ flowchart LR
 5. The mock server pulls that generated spec and uses it to serve example responses.
 6. Documentation, monitoring, and export all read from the same underlying project state, so the app behaves like one connected system instead of separate demos.
 
+## Real-time collaboration
+
+The Express mock service also hosts a collaboration WebSocket at `/collab`. When
+two people open the same project in the editor they join a per-project room: the
+editor shows a live presence indicator (who else is editing), and when one person
+saves a change the others' views refresh automatically. Auth reuses the same JWT
+as the rest of the stack. See [docs/architecture.md](docs/architecture.md).
+
 ## Stack
 
 - Frontend: React, Vite
@@ -65,11 +80,29 @@ flowchart LR
 | Service | Port | Purpose |
 | --- | --- | --- |
 | `frontend` | `5173` | Main UI for dashboard, editor, schemas, docs, monitoring, and export |
-| `backend` | `8000` | CRUD API plus OpenAPI spec generation |
+| `backend` | `8000` | CRUD API plus OpenAPI spec generation, validation, and observability |
 | `mock` | `4010` | Spec-driven mock routes, logs, stats, and reload endpoint |
 | `db` | `5432` | PostgreSQL persistence |
+| `redis` | `6379` | Rate-limit store + spec cache (in-process fallback if absent) |
 
 ## Quick Start With Docker
+
+**TL;DR (≈ 5 minutes):**
+
+```bash
+cp .env.example .env          # then set POSTGRES_PASSWORD, ADMIN_*, JWT_SECRET
+docker compose up --build -d  # or: make setup && make dev
+open http://localhost:5173
+```
+
+To verify a from-scratch clone end to end (build → all services healthy →
+auth works), run the cold-clone smoke test (uses a throwaway env + isolated ports):
+
+```bash
+make smoke        # wraps scripts/smoke-test.sh
+```
+
+### Step by step
 
 1. Copy the environment file:
 
@@ -150,9 +183,17 @@ Most important variables:
 | `ENABLE_API_DOCS` | Set to `true` only when you intentionally want FastAPI `/docs` and `/openapi.json` exposed |
 | `GZIP_MIN_SIZE_BYTES` | Minimum response size (bytes) before GZip compression kicks in (default `500`) |
 | `HSTS_MAX_AGE_SECONDS` | `Strict-Transport-Security` max-age, emitted only over HTTPS (default `31536000`) |
+| `ENVIRONMENT` | Deploy environment label (`development`/`staging`/`production`) used in logs and Sentry |
+| `METRICS_ENABLED` | Expose the Prometheus `/metrics` endpoint (default `true`) |
+| `SENTRY_DSN` | Backend Sentry DSN — leave blank to disable error tracking |
+| `SENTRY_TRACES_SAMPLE_RATE` | Backend Sentry performance sampling rate (default `0.0`) |
+| `REDIS_URL` | Redis for rate limiting + spec cache; leave blank to use in-process fallback |
+| `SPEC_CACHE_TTL_SECONDS` | TTL for cached generated specs (default `300`) |
 | `BACKEND_URL` | Backend URL used by the mock server |
 | `VITE_API_URL` | Frontend-to-backend API base URL |
 | `VITE_MOCK_URL` | Frontend-to-mock API base URL |
+| `VITE_SENTRY_DSN` | Frontend Sentry DSN — leave blank to disable error tracking |
+| `VITE_SENTRY_TRACES_SAMPLE_RATE` | Frontend Sentry performance sampling rate (default `0.0`) |
 
 Security defaults in this repo now bind published ports to `127.0.0.1`, so the stack is only reachable from the local machine unless you intentionally change the compose file.
 
@@ -290,9 +331,17 @@ a key is cached and replayed on retries (with `Idempotency-Replayed: true`), so 
 retried creation never produces a duplicate. Reusing a key on a different route
 returns `409 Conflict`.
 
-### Health
+**Observability:** structured JSON logs carry the request `trace_id`; Prometheus
+metrics are exposed at `GET /metrics` (request counts, latencies, sizes); and
+errors are reported to Sentry when a DSN is configured. Reliability targets and
+the uptime-monitoring setup live in [docs/slo.md](docs/slo.md).
 
-- `GET /health`
+### Health & metrics
+
+- `GET /health` — basic service check
+- `GET /health/live` — liveness (process up)
+- `GET /health/ready` — readiness (database reachable)
+- `GET /metrics` — Prometheus exposition (enabled by `METRICS_ENABLED`)
 
 ### Auth
 
@@ -359,25 +408,15 @@ returns `409 Conflict`.
 
 ## Testing
 
-Frontend build:
+| Layer | Command | Covers |
+| --- | --- | --- |
+| Backend | `cd backend && python -m pytest` | Unit, integration, snapshot, and Schemathesis contract tests (80%+ gate) |
+| Frontend | `cd frontend && npm test` | Vitest/RTL component + service tests |
+| Mock | `cd mock && npm test` | HTTP routes + collaboration WebSocket |
+| E2E | `make smoke` then `bash scripts/e2e.sh` | Full flow: sign in → create project → validate spec (Playwright vs. the live stack) |
 
-```bash
-cd frontend
-npm run build
-```
-
-Backend smoke tests:
-
-```bash
-docker compose exec backend python -m unittest discover -s tests -v
-```
-
-Host-side backend smoke tests also work if your local Python environment has the
-backend dependencies installed:
-
-```bash
-python3 -m unittest discover -s backend/tests -v
-```
+The E2E script brings up the whole stack with docker compose (on isolated ports),
+runs Playwright, and tears down. CI runs all of the above on every push.
 
 ## Troubleshooting
 
