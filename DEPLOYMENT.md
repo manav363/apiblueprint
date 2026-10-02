@@ -25,7 +25,7 @@ git --version
 ## 1. Clone the Repository
 
 ```bash
-git clone https://github.com/manav/APIBlueprint.git
+git clone https://github.com/manav363/apiblueprint.git
 cd apiblueprint
 ```
 

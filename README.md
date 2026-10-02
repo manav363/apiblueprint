@@ -1,6 +1,6 @@
 # APIBlueprint
 
-[![CI](https://github.com/manav/APIBlueprint/actions/workflows/ci.yml/badge.svg)](https://github.com/manav/APIBlueprint/actions/workflows/ci.yml)
+[![CI](https://github.com/manav363/apiblueprint/actions/workflows/ci.yml/badge.svg)](https://github.com/manav363/apiblueprint/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111.0-009688)](https://fastapi.tiangolo.com/)
@@ -66,14 +66,24 @@ editor shows a live presence indicator (who else is editing), and when one perso
 saves a change the others' views refresh automatically. Auth reuses the same JWT
 as the rest of the stack. See [docs/architecture.md](docs/architecture.md).
 
+## Engineering highlights
+
+- **Two services, on purpose.** FastAPI is the system of record (data, spec generation, validation, auth); an Express service serves the mock API and a collaboration WebSocket. The reasoning is written up in [ADR-001](docs/decisions/ADR-001-dual-backend.md).
+- **Contract-first.** OpenAPI 3.0.3 is generated from stored project data and validated with `openapi-spec-validator`. Spec endpoints return `ETag`/`304` and an immutable content-addressed URL, and the generated spec is cached under a content hash.
+- **API hardening.** JWT login shared by both services, `Idempotency-Key` replay on `POST`, rate limiting (Redis, with an in-process fallback), security headers, request IDs that appear in logs and error bodies.
+- **Observability.** Structured JSON logs, Prometheus metrics at `/metrics`, optional Sentry, and written [SLOs](docs/slo.md) and [runbooks](docs/runbooks/README.md).
+- **Tested at every layer.** 50 backend tests at about 88% coverage (80% gate) plus Schemathesis contract tests, Vitest component tests, `node:test` for the mock server, and a Playwright end-to-end run against the live Docker stack.
+- **CI with 11 jobs.** Lint, tests, build, contract tests, E2E, and dependency audits (`pip-audit`, `npm audit`) on every push and pull request, plus Dependabot.
+
 ## Stack
 
-- Frontend: React, Vite
-- Backend: FastAPI, SQLAlchemy, Pydantic
-- Database: PostgreSQL
-- Mock layer: Express
-- Migrations: Alembic
-- Local orchestration: Docker Compose
+- Frontend: React 19, Vite, React Router, Vitest + Testing Library, Playwright
+- Backend: FastAPI, SQLAlchemy, Pydantic, Alembic (Python 3.11+)
+- Mock layer: Express with a `ws` WebSocket for collaboration
+- Data: PostgreSQL; Redis for rate limiting and the spec cache (optional)
+- Auth: JWT (HS256) validated by both the backend and the mock server
+- Observability: structured logs, Prometheus, Sentry
+- Delivery: Docker Compose, GitHub Actions
 
 ## Services
 
@@ -458,25 +468,22 @@ Use that only if you are okay losing local data.
 
 ```text
 apiblueprint/
-├── backend/
-│   ├── alembic/
-│   ├── app/
-│   │   ├── core/
-│   │   ├── models/
-│   │   └── routes/
-│   ├── alembic.ini
-│   ├── start.sh
-│   ├── tests/
-│   └── Dockerfile
-├── frontend/
-│   ├── src/
-│   ├── package.json
-│   └── Dockerfile
-├── mock/
-│   ├── server.js
-│   ├── package.json
-│   └── Dockerfile
+├── backend/            FastAPI app (core/, models/, routes/), Alembic migrations, tests/
+├── frontend/           React + Vite app (components/, pages/, context/, services/), Vitest, Playwright e2e/
+├── mock/               Express mock server and /collab WebSocket, node:test tests
+├── docs/               architecture, ADRs, SLOs, runbooks, performance notes, ship-readiness
+├── scripts/            cold-clone smoke test, e2e runner, CDN purge, branch-protection setup
+├── load/               load-test script for spec generation
+├── .github/            CI (11 jobs), deploy workflow, Dependabot
 ├── docker-compose.yml
-├── .env.example
-└── README.md
+├── Makefile
+└── .env.example
 ```
+
+## How this was built
+
+APIBlueprint was built with AI coding assistance (Claude). The design choices are written down in [docs/architecture.md](docs/architecture.md) and [ADR-001](docs/decisions/ADR-001-dual-backend.md), and the behaviour described here is covered by the test suites above, which CI runs on every push.
+
+## License
+
+[MIT](LICENSE)
